@@ -187,8 +187,12 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         ];
 
         const MENU_STORAGE_KEY = 'campusCravingsMenu';
+        const ORDER_TRACKING_STORAGE_KEY = 'campusCravingsOrderTracking';
+        const MAX_TRACKED_ORDERS = 40;
         let menuRealtimeChannel = null;
         let orderRealtimeChannel = null;
+        let studentOrderRefreshTimer = null;
+        let studentOrdersLoading = false;
 
         function loadMenuItems() {
             try {
@@ -323,6 +327,56 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             renderActiveOrders();
             renderAdminOrders();
             renderOrderHistory();
+        }
+
+        async function loadStudentOrders() {
+            if (!supabaseClient || !currentUser || adminUser || studentOrdersLoading) return;
+
+            const trackingKeys = loadStudentTrackingKeys();
+            if (!trackingKeys.length) {
+                activeOrders = [];
+                orderHistory = [];
+                renderActiveOrders();
+                renderOrderHistory();
+                return;
+            }
+
+            studentOrdersLoading = true;
+            try {
+                const { data, error } = await supabaseClient.rpc('get_student_orders', {
+                    p_tracking_keys: trackingKeys
+                });
+
+                if (error) throw error;
+
+                const registerId = currentUser.registerId.toUpperCase();
+                const orders = (data || [])
+                    .map(mapSharedOrder)
+                    .filter(order => String(order.student.registerId).toUpperCase() === registerId);
+
+                activeOrders = orders.filter(order => order.statusIndex < 4);
+                orderHistory = orders.filter(order => order.statusIndex === 4);
+                renderActiveOrders();
+                renderOrderHistory();
+            } catch (error) {
+                console.warn('Student order refresh failed:', error);
+            } finally {
+                studentOrdersLoading = false;
+            }
+        }
+
+        async function startStudentOrderSync() {
+            stopStudentOrderSync();
+            if (!supabaseClient || !currentUser || adminUser) return;
+
+            await loadStudentOrders();
+            studentOrderRefreshTimer = setInterval(loadStudentOrders, 5000);
+        }
+
+        function stopStudentOrderSync() {
+            if (!studentOrderRefreshTimer) return;
+            clearInterval(studentOrderRefreshTimer);
+            studentOrderRefreshTimer = null;
         }
 
         function applySharedOrder(row) {
@@ -462,7 +516,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         function setCookie(name, value, days = 30) {
             const expires = new Date();
             expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-            document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+            const secure = window.location.protocol === 'https:' ? ';Secure' : '';
+            document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Lax${secure}`;
         }
 
         function getCookie(name) {
@@ -470,6 +525,51 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             if (!cookieString) return '';
             const match = cookieString.split('; ').find(entry => entry.startsWith(`${name}=`));
             return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : '';
+        }
+
+        function loadStudentTrackingKeys() {
+            if (!currentUser?.registerId) return [];
+
+            try {
+                const stored = getCookie(ORDER_TRACKING_STORAGE_KEY)
+                    || localStorage.getItem(ORDER_TRACKING_STORAGE_KEY);
+                if (!stored) return [];
+
+                const tracking = JSON.parse(stored);
+                if (tracking.registerId !== currentUser.registerId.toUpperCase()) return [];
+                return Array.isArray(tracking.keys)
+                    ? tracking.keys.filter(key => /^[A-Za-z0-9_-]{40,64}$/.test(key)).slice(-MAX_TRACKED_ORDERS)
+                    : [];
+            } catch (error) {
+                console.warn('Saved order tracking data could not be read:', error);
+                return [];
+            }
+        }
+
+        function saveStudentTrackingKey(registerId, trackingKey) {
+            const normalizedRegisterId = registerId.toUpperCase();
+            const previousKeys = currentUser?.registerId?.toUpperCase() === normalizedRegisterId
+                ? loadStudentTrackingKeys()
+                : [];
+            const tracking = {
+                registerId: normalizedRegisterId,
+                keys: [...new Set([...previousKeys, trackingKey])].slice(-MAX_TRACKED_ORDERS)
+            };
+            const serialized = JSON.stringify(tracking);
+
+            try {
+                localStorage.setItem(ORDER_TRACKING_STORAGE_KEY, serialized);
+            } catch (error) {
+                console.warn('Order tracking could not be saved to local storage:', error);
+            }
+            setCookie(ORDER_TRACKING_STORAGE_KEY, serialized, 365);
+        }
+
+        function createOrderTrackingKey() {
+            const bytes = new Uint8Array(32);
+            window.crypto.getRandomValues(bytes);
+            const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         }
 
         function saveSessionState() {
@@ -537,6 +637,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             renderOrderHistory();
             startMenuRealtimeSync();
             startOrderRealtimeSync();
+            await startStudentOrderSync();
+            window.addEventListener('focus', loadStudentOrders);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) loadStudentOrders();
+            });
             if (adminUser && adminPasswordChangeRequired) {
                 openAdminPasswordModal(true);
             }
@@ -721,6 +826,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             };
 
             saveSessionState();
+            await startStudentOrderSync();
             renderUserProfile();
             renderAdminAccess();
             renderStudentAppView();
@@ -750,6 +856,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 return;
             }
 
+            stopStudentOrderSync();
             currentUser = null;
             adminUser = { name: username, username, id: data.user.id };
             adminPasswordChangeRequired = data.user.user_metadata?.password_changed !== true;
@@ -823,6 +930,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         }
 
         function logoutUser() {
+            stopStudentOrderSync();
+            stopStudentOrderSync();
             currentUser = null;
             clearSessionState();
             renderUserProfile();
@@ -1052,6 +1161,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const slot = formatPickupTime(selectedTime);
             const payMode = document.querySelector('input[name="payMode"]:checked').value;
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const trackingKey = createOrderTrackingKey();
             
             // Random Token Number generation (e.g. SONA-T78)
             const tokenNum = `S-${Math.floor(100 + Math.random() * 900)}`;
@@ -1076,6 +1186,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const { data: orderId, error } = await supabaseClient.rpc('place_canteen_order', {
                 p_order_data: {
                     token: tokenNum,
+                    tracking_key: trackingKey,
                     student: orderStudent,
                     items: orderItems,
                     total_amount: total,
@@ -1090,6 +1201,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 showToast('Could not place your order. Please try again.');
                 return;
             }
+
+            saveStudentTrackingKey(currentUser.registerId, trackingKey);
 
             const newOrder = {
                 id: orderId,
@@ -1169,6 +1282,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
             container.innerHTML = activeOrders.map(order => {
                 const isReady = order.statusIndex === 3;
+                const canManageOrder = adminUser && order.claimedBy === adminUser.id;
                 return `
                     <div class="bg-white rounded-2xl border ${isReady ? 'border-2 border-emerald-500 shadow-lg' : 'border-slate-200'} p-6 space-y-6">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
@@ -1235,26 +1349,28 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
                         <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
                             <div class="text-xs font-semibold text-slate-500">
-                                ${adminUser ? 'Admin controls active' : 'Login as admin to manage this order'}
+                                ${adminUser
+                                    ? (order.claimedByName ? `Taken by ${escapeHtml(order.claimedByName)}` : 'Available to claim')
+                                    : 'Order status updates automatically.'}
                             </div>
                             <div class="flex justify-end gap-3">
-                                ${order.statusIndex === 0 ? `
+                                ${adminUser && order.statusIndex === 0 && !order.claimedBy ? `
                                     <button onclick="updateOrderStatus('${order.id}', 1)" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
-                                        Accept Order
+                                        Take & Accept
                                     </button>
-                                ` : order.statusIndex === 1 ? `
+                                ` : canManageOrder && order.statusIndex === 1 ? `
                                     <button onclick="updateOrderStatus('${order.id}', 2)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
                                         Start Preparation
                                     </button>
-                                ` : order.statusIndex === 2 ? `
+                                ` : canManageOrder && order.statusIndex === 2 ? `
                                     <button onclick="updateOrderStatus('${order.id}', 3)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
                                         Mark Ready & Notify
                                     </button>
-                                ` : order.statusIndex === 3 ? `
+                                ` : canManageOrder && order.statusIndex === 3 ? `
                                     <button onclick="updateOrderStatus('${order.id}', 4)" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
                                         Mark Collected
                                     </button>
-                                ` : `
+                                ` : order.statusIndex === 4 ? `
                                     <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
                                         <i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Order Completed
                                     </span>

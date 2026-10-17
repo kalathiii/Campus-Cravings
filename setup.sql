@@ -114,6 +114,7 @@ $$;
 create table if not exists public.canteen_orders (
     id uuid primary key default gen_random_uuid(),
     token text not null,
+    tracking_key text,
     student jsonb not null check (jsonb_typeof(student) = 'object'),
     items jsonb not null check (jsonb_typeof(items) = 'array'),
     total_amount numeric(10, 2) not null check (total_amount >= 0),
@@ -130,6 +131,13 @@ create table if not exists public.canteen_orders (
 
 create index if not exists canteen_orders_active_created_idx
     on public.canteen_orders (status_index, created_at desc);
+
+alter table public.canteen_orders
+    add column if not exists tracking_key text;
+
+create unique index if not exists canteen_orders_tracking_key_idx
+    on public.canteen_orders (tracking_key)
+    where tracking_key is not null;
 
 alter table public.canteen_orders enable row level security;
 
@@ -185,6 +193,7 @@ begin
     end if;
 
     if jsonb_array_length(p_order_data -> 'items') = 0
+       or coalesce(p_order_data ->> 'tracking_key', '') !~ '^[A-Za-z0-9_-]{40,64}$'
        or coalesce(p_order_data #>> '{student,name}', '') = ''
        or coalesce(p_order_data #>> '{student,registerId}', '') = ''
        or coalesce(p_order_data ->> 'token', '') = ''
@@ -196,6 +205,7 @@ begin
 
     insert into public.canteen_orders (
         token,
+        tracking_key,
         student,
         items,
         total_amount,
@@ -204,6 +214,7 @@ begin
         placed_label
     ) values (
         p_order_data ->> 'token',
+        p_order_data ->> 'tracking_key',
         p_order_data -> 'student',
         p_order_data -> 'items',
         (p_order_data ->> 'total_amount')::numeric,
@@ -215,6 +226,39 @@ begin
 
     return created_order_id;
 end;
+$$;
+
+create or replace function public.get_student_orders(p_tracking_keys text[])
+returns table (
+    id uuid,
+    token text,
+    student jsonb,
+    items jsonb,
+    total_amount numeric,
+    pickup_slot text,
+    payment_mode text,
+    placed_label text,
+    status_index smallint,
+    claimed_by_name text
+)
+language sql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+    select
+        orders.id,
+        orders.token,
+        orders.student,
+        orders.items,
+        orders.total_amount,
+        orders.pickup_slot,
+        orders.payment_mode,
+        orders.placed_label,
+        orders.status_index,
+        orders.claimed_by_name
+    from public.canteen_orders as orders
+    where cardinality(p_tracking_keys) between 1 and 40
+      and orders.tracking_key = any(p_tracking_keys);
 $$;
 
 create or replace function public.claim_canteen_order(p_order_id uuid)
@@ -281,6 +325,8 @@ $$;
 
 revoke all on function public.place_canteen_order(jsonb) from public;
 grant execute on function public.place_canteen_order(jsonb) to anon, authenticated;
+revoke all on function public.get_student_orders(text[]) from public;
+grant execute on function public.get_student_orders(text[]) to anon, authenticated;
 revoke all on function public.claim_canteen_order(uuid) from public, anon;
 grant execute on function public.claim_canteen_order(uuid) to authenticated;
 revoke all on function public.advance_canteen_order(uuid, smallint) from public, anon;
