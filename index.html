@@ -1,0 +1,2109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Cravings - Sona Canteen Pre-Ordering Portal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            500: '#f97316',
+                            600: '#ea580c',
+                            700: '#c2410c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(250, 204, 21, 0.20), transparent 24%),
+                radial-gradient(circle at bottom right, rgba(253, 224, 71, 0.18), transparent 26%),
+                #ffffff;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .dark-panel {
+            background: linear-gradient(135deg, #fff8d6 0%, #fffaf0 100%);
+            border: 1px solid rgba(250, 204, 21, 0.40);
+            box-shadow: 0 18px 40px rgba(250, 204, 21, 0.18);
+            backdrop-filter: blur(12px);
+        }
+        .category-pill.active {
+            background: linear-gradient(135deg, #facc15, #fbbf24);
+            color: #1f2937;
+            border-color: transparent;
+            box-shadow: 0 12px 25px rgba(250, 204, 21, 0.28);
+        }
+        @keyframes menuCardIn {
+            from {
+                opacity: 0;
+                transform: translateY(18px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .menu-card {
+            animation: menuCardIn 0.55s ease both;
+            transform-origin: center;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+        .menu-card:hover {
+            transform: translateY(-6px) scale(1.01);
+            box-shadow: 0 18px 30px rgba(249, 115, 22, 0.18);
+            border-color: rgba(250, 204, 21, 0.55);
+        }
+        .promo-slider {
+            position: relative;
+            overflow: hidden;
+            min-height: 210px;
+        }
+        .promo-slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transform: translateX(40px);
+            pointer-events: none;
+            transition: transform 0.7s ease, opacity 0.7s ease;
+        }
+        .promo-slide.active {
+            position: relative;
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+        .promo-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.18);
+            transition: all 0.25s ease;
+        }
+        .promo-dot.active {
+            background: #f59e0b;
+            width: 26px;
+            border-radius: 999px;
+        }
+    </style>
+</head>
+<body class="text-slate-900 min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- NAVIGATION HEADER -->
+    <header class="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 border-b border-yellow-600 sticky top-0 z-40 shadow-lg shadow-yellow-400/20 backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex items-center gap-3">
+                    <div class="bg-white text-yellow-600 p-3 rounded-2xl shadow-md shadow-yellow-500/25 border border-yellow-200">
+                        <i class="fa-solid font-bold fa-utensils text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                            Campus Cravings
+                            <span class="text-[10px] bg-white/80 text-yellow-700 border border-yellow-500 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider hidden sm:inline-block">Sona Canteen</span>
+                        </h1>
+                        <p class="text-xs text-slate-700 font-medium">Sona College Pre-Ordering Portal</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 sm:gap-4">
+                    <div id="adminAccessSection"></div>
+                    <div id="userProfileSection"></div>
+                    <button onclick="toggleCartDrawer()" class="relative bg-white hover:bg-yellow-50 text-yellow-700 p-3 rounded-xl transition duration-200 flex items-center gap-2 shadow-sm border border-yellow-300">
+                        <i class="fa-solid fa-burger text-lg"></i>
+                        <span class="font-bold text-sm hidden sm:inline">Order Bag</span>
+                        <span id="cartBadgeCount" class="bg-yellow-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center -ml-1">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="py-10 px-4 sm:px-6">
+        <div class="max-w-7xl mx-auto dark-panel rounded-[28px] p-4 sm:p-6 md:p-8 overflow-hidden">
+            <div class="promo-slider" aria-live="polite">
+                <div id="promoSlides" class="relative">
+                    <article class="promo-slide active">
+                        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div class="space-y-4 text-center md:text-left">
+                                <div class="inline-flex items-center gap-2 bg-white/80 border border-yellow-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider text-yellow-700">
+                                    <i class="fa-solid fa-bolt text-yellow-600"></i> Flash Deal
+                                </div>
+                                <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Mega Lunch Discount: Save up to 25% today.</h2>
+                                <p class="text-slate-700 text-sm sm:text-base max-w-xl">Enjoy select rice meals, snacks, and beverages at irresistible campus pricing before the lunch rush starts.</p>
+                            </div>
+                            <div class="bg-white/80 border border-yellow-300 p-4 rounded-2xl flex items-center gap-4 shadow-xl min-w-[220px]">
+                                <div class="bg-gradient-to-br from-yellow-400 to-yellow-500 text-white rounded-xl p-3 font-black text-2xl shadow-lg shadow-yellow-500/20">
+                                    25% OFF
+                                </div>
+                                <div class="text-left">
+                                    <p class="text-[10px] uppercase font-bold text-yellow-700 tracking-wider">Today Only</p>
+                                    <p class="text-sm font-semibold text-slate-900">Campus lunch combo</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="promo-slide">
+                        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div class="space-y-4 text-center md:text-left">
+                                <div class="inline-flex items-center gap-2 bg-white/80 border border-yellow-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider text-yellow-700">
+                                    <i class="fa-solid fa-mug-hot text-yellow-600"></i> Evening Deal
+                                </div>
+                                <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">After 3pm, buy 2 special meals get free juice worth ₹30.</h2>
+                                <p class="text-slate-700 text-sm sm:text-base max-w-xl">Perfect for the late afternoon rush when students want a full meal and a refreshing juice without extra cost.</p>
+                            </div>
+                            <div class="bg-white/80 border border-yellow-300 p-4 rounded-2xl flex items-center gap-4 shadow-xl min-w-[220px]">
+                                <div class="bg-gradient-to-br from-orange-400 to-yellow-500 text-white rounded-xl p-3 font-black text-2xl shadow-lg shadow-yellow-500/20">
+                                    FREE JUICE
+                                </div>
+                                <div class="text-left">
+                                    <p class="text-[10px] uppercase font-bold text-yellow-700 tracking-wider">After 3PM</p>
+                                    <p class="text-sm font-semibold text-slate-900">2 meals + juice</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="promo-slide">
+                        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div class="space-y-4 text-center md:text-left">
+                                <div class="inline-flex items-center gap-2 bg-white/80 border border-yellow-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider text-yellow-700">
+                                    <i class="fa-solid fa-star text-yellow-600"></i> Student Favorite
+                                </div>
+                                <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Exclusive student meals from ₹40 with fast pickup.</h2>
+                                <p class="text-slate-700 text-sm sm:text-base max-w-xl">Pre-order before break and collect your meal quickly from the dedicated counter without waiting in line.</p>
+                            </div>
+                            <div class="bg-white/80 border border-yellow-300 p-4 rounded-2xl flex items-center gap-4 shadow-xl min-w-[220px]">
+                                <div class="bg-gradient-to-br from-yellow-400 to-yellow-500 text-white rounded-xl p-3 font-black text-2xl shadow-lg shadow-yellow-500/20">
+                                    ₹40
+                                </div>
+                                <div class="text-left">
+                                    <p class="text-[10px] uppercase font-bold text-yellow-700 tracking-wider">Special Combo</p>
+                                    <p class="text-sm font-semibold text-slate-900">Meals at fixed price</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="flex items-center justify-center gap-2 mt-6" id="promoDots"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MAIN CONTAINER -->
+    <div id="studentAppShell">
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+            <!-- Navigation Tabs: Menu, Live Tracking, Order History -->
+            <div class="flex items-center justify-between border-b border-yellow-200 mb-8 pb-3">
+                <div class="flex space-x-2 sm:space-x-6 overflow-x-auto hide-scrollbar">
+                    <button onclick="switchTab('menu')" id="tab-menu" class="tab-btn font-bold text-sm sm:text-base pb-3 border-b-2 border-yellow-500 text-yellow-700 flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-utensils"></i> Canteen Menu
+                    </button>
+                    <button onclick="switchTab('active-orders')" id="tab-active-orders" class="tab-btn font-bold text-sm sm:text-base pb-3 border-b-2 border-transparent text-slate-600 hover:text-yellow-700 flex items-center gap-2 whitespace-nowrap relative">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Live Order Tracker
+                        <span id="activeOrdersBadge" class="hidden bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button onclick="switchTab('history')" id="tab-history" class="tab-btn font-bold text-sm sm:text-base pb-3 border-b-2 border-transparent text-slate-600 hover:text-yellow-700 flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-receipt"></i> Order History
+                    </button>
+                </div>
+
+                <div class="hidden lg:flex items-center gap-2 text-xs font-semibold text-yellow-700 bg-yellow-100 px-3 py-1.5 rounded-lg">
+                    <i class="fa-solid fa-circle-check text-emerald-500"></i> Pure Veg Canteen Options
+                </div>
+            </div>
+
+            <!-- TAB 1: MENU DASHBOARD -->
+            <section id="view-menu" class="tab-view block space-y-6">
+                <div class="space-y-5">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-900">Today's Fresh Canteen Menu</h3>
+                            <p class="text-xs text-slate-600">Freshly prepared meals and quick bites served during break slots.</p>
+                        </div>
+                        <div class="text-xs font-semibold text-yellow-700 bg-yellow-100 border border-yellow-200 px-3 py-1.5 rounded-lg">
+                            <i class="fa-solid fa-tag"></i> Fixed rates available
+                        </div>
+                    </div>
+
+                    <div class="dark-panel rounded-2xl p-3 sm:p-4">
+                        <div class="flex gap-2 overflow-x-auto hide-scrollbar pb-1" id="categoryFilters"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" id="foodGrid"></div>
+                </div>
+            </section>
+
+            <!-- TAB 2: LIVE ORDER TRACKER -->
+            <section id="view-active-orders" class="tab-view hidden space-y-6">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-900">Live Order Status Tracker</h3>
+                    <p class="text-xs text-slate-500">Monitor your canteen pre-orders and pick them up when ready.</p>
+                </div>
+
+                <div id="activeOrdersList" class="space-y-6">
+                    <!-- Dynamically populated or empty state -->
+                </div>
+            </section>
+
+            <!-- TAB 3: ORDER HISTORY -->
+            <section id="view-history" class="tab-view hidden space-y-6">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-900">Your Past Pre-Orders</h3>
+                    <p class="text-xs text-slate-500">Archive of completed and collected food orders.</p>
+                </div>
+
+                <div id="orderHistoryList" class="space-y-4">
+                    <!-- Dynamically populated -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <section id="adminDashboard" class="hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+        <div class="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-[0.25em] text-emerald-600">Admin Console</p>
+                <h3 class="text-3xl font-black text-slate-900 mt-2">Canteen Operations Dashboard</h3>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="openAdminPasswordModal(false)" class="bg-white border border-emerald-300 text-emerald-800 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-50 transition">
+                    <i class="fa-solid fa-key mr-2"></i> Change Password
+                </button>
+                <button onclick="logoutAdmin()" class="bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-right-from-bracket mr-2"></i> Logout Admin
+                </button>
+            </div>
+        </div>
+
+        <div class="grid xl:grid-cols-[1.3fr_0.7fr] gap-6">
+            <div class="space-y-6">
+                <div class="bg-white border border-slate-200 rounded-3xl shadow-lg shadow-slate-200/60 p-5">
+                    <div class="flex items-center justify-between mb-5">
+                        <div>
+                            <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500">Orders</p>
+                            <h4 class="text-xl font-bold text-slate-900">Live Order Access</h4>
+                        </div>
+                        <span id="adminOrdersBadge" class="bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">0 Active</span>
+                    </div>
+                    <div id="adminOrderList" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-white border border-slate-200 rounded-3xl shadow-lg shadow-slate-200/60 p-5">
+                    <div class="mb-5">
+                        <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500">Menu Editor</p>
+                        <h4 class="text-xl font-bold text-slate-900">Update Menu, Price & Image</h4>
+                    </div>
+                    <div id="menuEditorList" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CART & CHECKOUT SIDEBAR DRAWER -->
+    <div id="cartDrawer" class="fixed inset-0 z-50 overflow-hidden hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onclick="toggleCartDrawer()"></div>
+
+        <div class="fixed inset-y-0 right-0 pl-10 max-w-full flex">
+            <div class="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between">
+                <!-- Drawer Header -->
+                <div class="p-6 bg-slate-900 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-basket-shopping text-orange-400 text-xl"></i>
+                        <div>
+                            <h2 class="text-lg font-bold">Your Order Tray</h2>
+                            <p class="text-xs text-slate-400">Sona Canteen Counter Order</p>
+                        </div>
+                    </div>
+                    <button onclick="toggleCartDrawer()" class="text-slate-400 hover:text-white p-2 rounded-lg">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Drawer Body: Items List -->
+                <div class="flex-1 p-6 overflow-y-auto space-y-4" id="cartItemsContainer">
+                    <!-- Dynamic cart items loaded here -->
+                </div>
+
+                <!-- Drawer Footer: Pickup Slot & Checkout -->
+                <div id="cartFooter" class="p-6 bg-slate-50 border-t border-slate-200 space-y-4">
+                    <!-- Pickup Time Selection -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                            <i class="fa-solid fa-clock text-orange-500 mr-1"></i> Choose Pickup Time
+                        </label>
+                        <input id="pickupSlot" type="time" min="09:00" max="21:00" value="12:45" class="w-full bg-white border border-slate-300 text-slate-800 text-sm rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium">
+                        <p class="mt-2 text-[11px] text-slate-500">Flexible timing helps students order at a convenient pickup time.</p>
+                    </div>
+
+                    <!-- Payment Mode -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                            <i class="fa-solid fa-credit-card text-orange-500 mr-1"></i> Payment Mode
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="border border-orange-500 bg-orange-50 p-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs font-bold text-orange-800">
+                                <input type="radio" name="payMode" value="Sona Wallet / Cash on Counter" checked class="text-orange-600 focus:ring-orange-500">
+                                Pay @ Counter
+                            </label>
+                            <label class="border border-slate-200 bg-white p-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600">
+                                <input type="radio" name="payMode" value="UPI / Online Pay" class="text-orange-600 focus:ring-orange-500">
+                                UPI / Online
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Order Total Breakup -->
+                    <div class="space-y-1.5 pt-2 border-t border-slate-200 text-sm">
+                        <div class="flex justify-between text-slate-500">
+                            <span>Subtotal</span>
+                            <span id="cartSubtotal">₹0</span>
+                        </div>
+                        <div class="flex justify-between text-slate-500">
+                            <span>Container/Service Fee</span>
+                            <span class="text-emerald-600 font-semibold">FREE</span>
+                        </div>
+                        <div class="flex justify-between text-base font-extrabold text-slate-900 pt-2 border-t border-slate-200">
+                            <span>Total Payable</span>
+                            <span id="cartTotalAmount" class="text-orange-600 text-lg">₹0</span>
+                        </div>
+                    </div>
+
+                    <!-- Place Order Button -->
+                    <button onclick="placeOrder()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-orange-500/30 transition duration-200 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-circle-check"></i>
+                        Confirm & Place Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STUDENT LOGIN / REGISTER MODAL -->
+    <div id="loginModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden transition-all transform">
+            <div class="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white text-center relative">
+                <button onclick="closeLoginModal()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+                <div class="bg-orange-500/20 text-orange-400 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-orange-500/30">
+                    <i class="fa-solid fa-id-card text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white">Sona Student Portal Login</h3>
+                <p class="text-xs text-slate-300 mt-1">Access pre-ordering using your Sona Register ID</p>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="p-6 space-y-4 text-black">
+                <div>
+                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Student Sona Register ID / Username</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
+                        <input type="text" id="loginRegisterId" required placeholder="e.g. SONA202601" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold uppercase text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Student Name</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-signature absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
+                        <input type="text" id="loginStudentName" required placeholder="e.g. Rahul Sharma" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Department / Year</label>
+                    <select id="loginDept" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="B.E. Computer Science and Engineering - 1st Year">B.E. Computer Science and Engineering - 1st Year</option>
+                        <option value="B.E. Computer Science and Engineering - 2nd Year">B.E. Computer Science and Engineering - 2nd Year</option>
+                        <option value="B.E. Computer Science and Engineering - 3rd Year">B.E. Computer Science and Engineering - 3rd Year</option>
+                        <option value="B.E. Computer Science and Engineering - 4th Year">B.E. Computer Science and Engineering - 4th Year</option>
+                        <option value="B.E. Electronics and Communication Engineering - 1st Year">B.E. Electronics and Communication Engineering - 1st Year</option>
+                        <option value="B.E. Electronics and Communication Engineering - 2nd Year">B.E. Electronics and Communication Engineering - 2nd Year</option>
+                        <option value="B.E. Electronics and Communication Engineering - 3rd Year">B.E. Electronics and Communication Engineering - 3rd Year</option>
+                        <option value="B.E. Electronics and Communication Engineering - 4th Year">B.E. Electronics and Communication Engineering - 4th Year</option>
+                        <option value="B.E. Electrical and Electronics Engineering - 1st Year">B.E. Electrical and Electronics Engineering - 1st Year</option>
+                        <option value="B.E. Electrical and Electronics Engineering - 2nd Year">B.E. Electrical and Electronics Engineering - 2nd Year</option>
+                        <option value="B.E. Electrical and Electronics Engineering - 3rd Year">B.E. Electrical and Electronics Engineering - 3rd Year</option>
+                        <option value="B.E. Electrical and Electronics Engineering - 4th Year">B.E. Electrical and Electronics Engineering - 4th Year</option>
+                        <option value="B.E. Mechanical Engineering - 1st Year">B.E. Mechanical Engineering - 1st Year</option>
+                        <option value="B.E. Mechanical Engineering - 2nd Year">B.E. Mechanical Engineering - 2nd Year</option>
+                        <option value="B.E. Mechanical Engineering - 3rd Year">B.E. Mechanical Engineering - 3rd Year</option>
+                        <option value="B.E. Mechanical Engineering - 4th Year">B.E. Mechanical Engineering - 4th Year</option>
+                        <option value="B.E. Civil Engineering - 1st Year">B.E. Civil Engineering - 1st Year</option>
+                        <option value="B.E. Civil Engineering - 2nd Year">B.E. Civil Engineering - 2nd Year</option>
+                        <option value="B.E. Civil Engineering - 3rd Year">B.E. Civil Engineering - 3rd Year</option>
+                        <option value="B.E. Civil Engineering - 4th Year">B.E. Civil Engineering - 4th Year</option>
+                        <option value="B.Tech Information Technology - 1st Year">B.Tech Information Technology - 1st Year</option>
+                        <option value="B.Tech Information Technology - 2nd Year">B.Tech Information Technology - 2nd Year</option>
+                        <option value="B.Tech Information Technology - 3rd Year">B.Tech Information Technology - 3rd Year</option>
+                        <option value="B.Tech Information Technology - 4th Year">B.Tech Information Technology - 4th Year</option>
+                        <option value="B.Tech Artificial Intelligence and Data Science - 1st Year">B.Tech Artificial Intelligence and Data Science - 1st Year</option>
+                        <option value="B.Tech Artificial Intelligence and Data Science - 2nd Year">B.Tech Artificial Intelligence and Data Science - 2nd Year</option>
+                        <option value="B.Tech Artificial Intelligence and Data Science - 3rd Year">B.Tech Artificial Intelligence and Data Science - 3rd Year</option>
+                        <option value="B.Tech Artificial Intelligence and Data Science - 4th Year">B.Tech Artificial Intelligence and Data Science - 4th Year</option>
+                        <option value="B.Sc Computer Science - 1st Year">B.Sc Computer Science - 1st Year</option>
+                        <option value="B.Sc Computer Science - 2nd Year">B.Sc Computer Science - 2nd Year</option>
+                        <option value="B.Sc Computer Science - 3rd Year">B.Sc Computer Science - 3rd Year</option>
+                        <option value="MBA - 1st Year">MBA - 1st Year</option>
+                        <option value="MBA - 2nd Year">MBA - 2nd Year</option>
+                        <option value="M.E. / M.Tech - 1st Year">M.E. / M.Tech - 1st Year</option>
+                        <option value="M.E. / M.Tech - 2nd Year">M.E. / M.Tech - 2nd Year</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl shadow-md transition duration-200 mt-2">
+                    Log In to Campus Cravings
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADMIN LOGIN MODAL -->
+    <div id="adminLoginModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden transition-all transform">
+            <div class="bg-gradient-to-r from-emerald-600 to-teal-500 p-6 text-white text-center relative">
+                <button onclick="closeAdminLoginModal()" class="absolute right-4 top-4 text-emerald-100 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+                <div class="bg-white/20 text-white w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20">
+                    <i class="fa-solid fa-user-shield text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white">Canteen Admin Access</h3>
+                <p class="text-xs text-emerald-100 mt-1">Accept orders, prepare food, and notify students when ready.</p>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="p-6 space-y-4 text-black">
+                <div>
+                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Admin Username</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user-tie absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
+                        <input type="text" id="adminUsername" required autocomplete="username" placeholder="admin1, admin2, or admin3" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Password</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
+                        <input type="password" id="adminPassword" required autocomplete="current-password" placeholder="Enter admin password" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition duration-200 mt-2">
+                    Login as Admin
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="adminPasswordModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="bg-emerald-700 p-6 text-white text-center relative">
+                <button id="adminPasswordCloseButton" onclick="closeAdminPasswordModal()" class="hidden absolute right-4 top-4 text-emerald-100 hover:text-white" aria-label="Close password panel">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+                <div class="bg-white/20 text-white w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20">
+                    <i class="fa-solid fa-key text-xl"></i>
+                </div>
+                <h3 class="text-xl font-bold">Change Admin Password</h3>
+                <p id="adminPasswordPrompt" class="text-xs text-emerald-100 mt-1">Set a new password for your account.</p>
+            </div>
+            <form onsubmit="handleAdminPasswordChange(event)" class="p-6 space-y-4 text-black">
+                <div>
+                    <label for="newAdminPassword" class="block text-xs font-bold uppercase tracking-wider mb-1">New password</label>
+                    <input type="password" id="newAdminPassword" required minlength="12" autocomplete="new-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label for="confirmAdminPassword" class="block text-xs font-bold uppercase tracking-wider mb-1">Confirm new password</label>
+                    <input type="password" id="confirmAdminPassword" required minlength="12" autocomplete="new-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <p class="text-xs text-slate-500">Use at least 12 characters. The shared account uses this password on every browser.</p>
+                <button id="saveAdminPasswordButton" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition">
+                    Save New Password
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- AUTH CHOICE MODAL -->
+    <div id="authChoiceModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-white/90 backdrop-blur-sm p-4">
+        <div class="welcome-bg welcome-panel rounded-[28px] max-w-2xl w-full overflow-hidden p-6 sm:p-8 lg:p-10">
+            <div class="text-center space-y-5">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-yellow-400 text-white shadow-lg shadow-yellow-300/40">
+                    <i class="fa-solid fa-bowl-food text-2xl"></i>
+                </div>
+
+                <div class="rounded-[18px] bg-[#0c3b7a] px-4 py-3 shadow-[0_18px_30px_rgba(12,59,122,0.18)] border border-[#1d5ab6]">
+                    <div class="flex flex-col items-center justify-center leading-none">
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 text-center">
+                            <span class="text-[2.3rem] sm:text-[3.8rem] lg:text-[4.6rem] font-black tracking-[-0.08em] text-yellow-400 leading-none">SONA</span>
+                            <div class="flex flex-col items-center sm:items-start leading-none">
+                                <span class="text-[0.8rem] sm:text-[1.15rem] lg:text-[1.5rem] font-black tracking-[0.06em] text-yellow-300 uppercase">College of</span>
+                                <span class="text-[0.8rem] sm:text-[1.15rem] lg:text-[1.5rem] font-black tracking-[0.06em] text-yellow-300 uppercase">Technology</span>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-[0.85rem] sm:text-[1.1rem] lg:text-[1.4rem] font-bold italic text-white/90 tracking-wide">Learning is a Celebration!</div>
+                    </div>
+                </div>
+
+                <h3 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-yellow-500 leading-none">
+                    Campus Cravings
+                </h3>
+
+                <p class="text-base sm:text-lg text-slate-600 max-w-md mx-auto">
+                    Choose your access to continue with the campus canteen portal.
+                </p>
+
+                <div class="space-y-3 pt-2">
+                    <button onclick="openLoginModal(); closeAuthChoiceModal();" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-2xl transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user-graduate"></i>
+                        Student Login
+                    </button>
+                    <button onclick="openAdminLoginModal(); closeAuthChoiceModal();" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user-shield"></i>
+                        Admin Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Profile Modal -->
+    <div id="profileModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white text-center relative">
+                <button onclick="closeProfileModal()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+                <div id="profileAvatarLarge" class="w-16 h-16 rounded-full mx-auto mb-3 border-4 border-orange-400 bg-gradient-to-br from-orange-500 to-amber-400 text-slate-900 flex items-center justify-center text-xl font-black shadow-lg shadow-orange-500/30">
+                    S
+                </div>
+                <h3 class="text-xl font-bold text-white">Student Profile</h3>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="flex justify-center">
+                    <label class="inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2.5 rounded-xl cursor-pointer shadow-md">
+                        <i class="fa-solid fa-image mr-2"></i> Upload Photo
+                        <input type="file" accept="image/*" class="hidden" onchange="uploadProfileImage(event)" />
+                    </label>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Student Name</label>
+                    <input id="profileName" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-900" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Register ID</label>
+                    <input id="profileRegisterId" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-900 uppercase" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Department / Year</label>
+                    <input id="profileDept" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-900" />
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button onclick="saveProfileChanges()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition">Save Profile</button>
+                    <button onclick="logoutUser()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-4 py-3 rounded-xl transition">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOM NOTIFICATION TOAST -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toastMessage" class="text-sm font-medium">Notification message</span>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-12 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 space-y-2">
+            <p class="font-semibold text-slate-700">Campus Cravings • Official Sona Canteen Food Pre-Ordering Network</p>
+            <p>© 2026 Sona College Campus Services. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Supabase Auth client. Configure the project URL and public key below. -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
+        const SUPABASE_PUBLIC_KEY = 'sb_publishable_0zOWGBcqJf4x2wzzPjrNqg_wde80mWj';
+        const ADMIN_EMAILS = Object.freeze({
+            admin1: 'admin1@campuscravings.invalid',
+            admin2: 'admin2@campuscravings.invalid',
+            admin3: 'admin3@campuscravings.invalid'
+        });
+        const supabaseClient = window.supabase && !SUPABASE_URL.includes('YOUR_PROJECT_ID') && !SUPABASE_PUBLIC_KEY.includes('YOUR_SUPABASE_')
+            ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY)
+            : null;
+
+        // Food Menu Dataset
+        const categoryOptions = [
+            'All',
+            'Rice Meals',
+            'Hot Beverages',
+            'Juices',
+            'Soft Drinks',
+            'Snacks'
+        ];
+
+        let currentCategory = 'All';
+
+        const defaultFoodMenuItems = [
+            {
+                id: 1,
+                name: "Sambar Saadham",
+                price: 40,
+                category: "South Indian Classic",
+                description: "Traditional hot authentic ghee rice cooked with lentils, mixed vegetables, and aromatic spices.",
+                image: "https://www.istockphoto.com/photo/sambar-rice-south-indian-food-gm1255857672-367517059?utm_source=unsplash&utm_medium=affiliate&utm_campaign=srp_photos_bottom&utm_content=https%3A%2F%2Funsplash.com%2Fs%2Fphotos%2Fsambar-sadham&utm_term=sambar+sadham%3A%3A%3A%3A82f27ec6-4a2b-4b1d-a8ed-2e4ec5fcea67",
+                badge: "Bestseller"
+            },
+            {
+                id: 2,
+                name: "Veg Biriyani",
+                price: 40,
+                category: "Rice Specialties",
+                description: "Fragrant basmati rice layered with fresh garden vegetables, mint, and signature spices.",
+                image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80",
+                badge: "Campus Favorite"
+            },
+            {
+                id: 3,
+                name: "Tomato Rice",
+                price: 40,
+                category: "Quick Meals",
+                description: "Tangy and flavorful rice tempered with ripe tomatoes, curry leaves, and crunchy mustard seeds.",
+                image: "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=600&q=80",
+                badge: "Hot & Tangy"
+            },
+            {
+                id: 4,
+                name: "Veg Rice",
+                price: 40,
+                category: "Quick Meals",
+                description: "Nutritious mixed vegetable pulav rice tossed with mild herbs and crunchy capsicum.",
+                image: "https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=600&q=80",
+                badge: "Healthy Choice"
+            },
+            {
+                id: 5,
+                name: "Veg Noodles",
+                price: 40,
+                category: "Chinese Express",
+                description: "Wok-tossed Indo-Chinese noodles loaded with crisp carrots, cabbage, and savory sauces.",
+                image: "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=600&q=80",
+                badge: "Chef's Special"
+            },
+            {
+                id: 6,
+                name: "Tea",
+                price: 10,
+                category: "Hot Beverages",
+                description: "Refreshing hot tea served fresh for a quick energy boost between classes.",
+                image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=600&q=80",
+                badge: "Quick Sip"
+            },
+            {
+                id: 7,
+                name: "Coffee",
+                price: 20,
+                category: "Hot Beverages",
+                description: "Aromatic filter coffee prepared fresh to keep you active during long study hours.",
+                image: "https://images.unsplash.com/photo-1497636577773-f1231844b336?auto=format&fit=crop&w=600&q=80",
+                badge: "Comfort Brew"
+            },
+            {
+                id: 8,
+                name: "String",
+                price: 30,
+                category: "Juices",
+                description: "Refreshing fruit juice packed with a crisp and vibrant taste.",
+                image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&w=600&q=80",
+                badge: "Fresh"
+            },
+            {
+                id: 9,
+                name: "Miranda",
+                price: 30,
+                category: "Juices",
+                description: "Cool and flavorful soft drink for a satisfying break-time refreshment.",
+                image: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=600&q=80",
+                badge: "Chilled"
+            },
+            {
+                id: 10,
+                name: "7UP",
+                price: 30,
+                category: "Soft Drinks",
+                description: "Classic lemon-lime soda with a crisp and bubbly finish.",
+                image: "https://images.unsplash.com/photo-1622483767028-3f66f2b7420a?auto=format&fit=crop&w=600&q=80",
+                badge: "Fizz"
+            },
+            {
+                id: 11,
+                name: "Pepsi",
+                price: 30,
+                category: "Soft Drinks",
+                description: "A popular chilled cola drink that pairs perfectly with quick bites.",
+                image: "https://images.unsplash.com/photo-1629203841116-3d4cf136d8c6?auto=format&fit=crop&w=600&q=80",
+                badge: "Classic"
+            },
+            {
+                id: 12,
+                name: "Coca Cola",
+                price: 30,
+                category: "Soft Drinks",
+                description: "Carbonated soft drink with the signature cola taste students love.",
+                image: "https://images.unsplash.com/photo-1622483767028-3f66f2b7420a?auto=format&fit=crop&w=600&q=80",
+                badge: "Popular"
+            },
+            {
+                id: 13,
+                name: "Mazza",
+                price: 30,
+                category: "Juices",
+                description: "Fruit-flavored juice delight with a sweet and vibrant taste.",
+                image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&w=600&q=80",
+                badge: "Sweet"
+            },
+            {
+                id: 14,
+                name: "Slice",
+                price: 30,
+                category: "Juices",
+                description: "Orange-flavored refreshment for a zesty and cooling break-time treat.",
+                image: "https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=600&q=80",
+                badge: "Citrus"
+            },
+            {
+                id: 15,
+                name: "Veg Roll",
+                price: 30,
+                category: "Snacks",
+                description: "Fresh vegetables wrapped in soft bread with a savory flavor and light seasoning.",
+                image: "https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=600&q=80",
+                badge: "Hot Bite"
+            },
+            {
+                id: 16,
+                name: "Veg Puff",
+                price: 20,
+                category: "Snacks",
+                description: "Flaky puff pastry stuffed with delicious vegetable filling and spices.",
+                image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80",
+                badge: "Savory"
+            },
+            {
+                id: 17,
+                name: "Kalan Puff",
+                price: 30,
+                category: "Snacks",
+                description: "Classic puff with a rich and satisfying filling that delivers hearty flavor.",
+                image: "https://images.unsplash.com/photo-1529042410759-befb1204b468?auto=format&fit=crop&w=600&q=80",
+                badge: "Classic Treat"
+            },
+            {
+                id: 18,
+                name: "Egg Puff",
+                price: 30,
+                category: "Snacks",
+                description: "Flaky pastry with a savory egg stuffing that is perfect on the go.",
+                image: "https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?auto=format&fit=crop&w=600&q=80",
+                badge: "Protein Pick"
+            }
+        ];
+
+        const MENU_STORAGE_KEY = 'campusCravingsMenu';
+        let menuRealtimeChannel = null;
+
+        function loadMenuItems() {
+            try {
+                const storedMenu = localStorage.getItem(MENU_STORAGE_KEY) || getCookie(MENU_STORAGE_KEY);
+                if (!storedMenu) return defaultFoodMenuItems.map(item => ({ ...item }));
+                const parsed = JSON.parse(storedMenu);
+                return Array.isArray(parsed) && parsed.length ? parsed : defaultFoodMenuItems.map(item => ({ ...item }));
+            } catch (error) {
+                return defaultFoodMenuItems.map(item => ({ ...item }));
+            }
+        }
+
+        function syncMenuAcrossTabs(menuList) {
+            try {
+                if (window.BroadcastChannel) {
+                    const channel = new BroadcastChannel('campusCravingsMenuSync');
+                    channel.postMessage({ key: MENU_STORAGE_KEY, menu: menuList });
+                    setTimeout(() => channel.close(), 100);
+                }
+            } catch (error) {
+                // BroadcastChannel is optional and may not be available in all browsers.
+            }
+        }
+
+        function cacheMenuItems(menuList) {
+            const menuText = JSON.stringify(menuList);
+            localStorage.setItem(MENU_STORAGE_KEY, menuText);
+            setCookie(MENU_STORAGE_KEY, menuText, 365);
+            syncMenuAcrossTabs(menuList);
+        }
+
+        async function loadMenuFromRemote() {
+            if (!supabaseClient) return;
+
+            const { data, error } = await supabaseClient
+                .from('canteen_menu')
+                .select('items')
+                .eq('id', true)
+                .maybeSingle();
+
+            if (error) {
+                console.warn('Shared menu load failed:', error);
+                return;
+            }
+
+            if (data && Array.isArray(data.items)) {
+                foodMenuItems = data.items;
+                cacheMenuItems(foodMenuItems);
+            }
+        }
+
+        async function saveMenuItems(menuList) {
+            if (!supabaseClient || !adminUser) {
+                throw new Error('Shared menu storage is not configured or you are not signed in as an admin.');
+            }
+
+            const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+            if (userError || !userData.user) {
+                throw new Error('Your admin session has expired. Sign in again to save menu changes.');
+            }
+
+            const { error } = await supabaseClient
+                .from('canteen_menu')
+                .upsert({
+                    id: true,
+                    items: menuList,
+                    updated_at: new Date().toISOString(),
+                    updated_by: userData.user.id
+                }, { onConflict: 'id' });
+
+            if (error) throw error;
+
+            foodMenuItems = menuList;
+            cacheMenuItems(foodMenuItems);
+        }
+
+        function startMenuRealtimeSync() {
+            if (!supabaseClient || menuRealtimeChannel) return;
+
+            menuRealtimeChannel = supabaseClient
+                .channel('campus-cravings-menu')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'canteen_menu'
+                }, payload => {
+                    if (!payload.new || !Array.isArray(payload.new.items)) return;
+
+                    foodMenuItems = payload.new.items;
+                    cacheMenuItems(foodMenuItems);
+                    renderMenu();
+                    renderMenuEditor();
+                    renderAdminOrders();
+                })
+                .subscribe();
+        }
+
+        let foodMenuItems = loadMenuItems();
+
+        if (window.BroadcastChannel) {
+            const menuChannel = new BroadcastChannel('campusCravingsMenuSync');
+            menuChannel.onmessage = (event) => {
+                if (event.data && event.data.key === MENU_STORAGE_KEY) {
+                    foodMenuItems = Array.isArray(event.data.menu) && event.data.menu.length ? event.data.menu : defaultFoodMenuItems.map(item => ({ ...item }));
+                    renderMenu();
+                    renderMenuEditor();
+                    renderAdminOrders();
+                }
+            };
+        }
+
+        window.addEventListener('storage', (event) => {
+            if (event.key === MENU_STORAGE_KEY && event.newValue) {
+                try {
+                    const parsed = JSON.parse(event.newValue);
+                    if (Array.isArray(parsed) && parsed.length) {
+                        foodMenuItems = parsed;
+                        renderMenu();
+                        renderMenuEditor();
+                        renderAdminOrders();
+                    }
+                } catch (error) {
+                    console.warn('Menu storage sync failed:', error);
+                }
+            }
+        });
+
+        // Global State Variables
+        let currentUser = null;
+        let adminUser = null;
+        let adminPasswordChangeRequired = false;
+
+        let cart = [];
+        let activeOrders = [];
+        let orderHistory = [];
+
+        const promoSlides = Array.from(document.querySelectorAll('.promo-slide'));
+        const promoDotsContainer = document.getElementById('promoDots');
+        let promoIndex = 0;
+        let promoTimer = null;
+
+        function initPromoSlider() {
+            if (!promoSlides.length || !promoDotsContainer) return;
+
+            promoSlides.forEach((_, index) => {
+                const dot = document.createElement('button');
+                dot.type = 'button';
+                dot.className = `promo-dot ${index === 0 ? 'active' : ''}`;
+                dot.setAttribute('aria-label', `Show offer ${index + 1}`);
+                dot.addEventListener('click', () => {
+                    promoIndex = index;
+                    updatePromoSlider();
+                    restartPromoSlider();
+                });
+                promoDotsContainer.appendChild(dot);
+            });
+
+            updatePromoSlider();
+            restartPromoSlider();
+        }
+
+        function restartPromoSlider() {
+            if (promoTimer) clearInterval(promoTimer);
+            promoTimer = setInterval(() => {
+                promoIndex = (promoIndex + 1) % promoSlides.length;
+                updatePromoSlider();
+            }, 3500);
+        }
+
+        function updatePromoSlider() {
+            promoSlides.forEach((slide, index) => {
+                slide.classList.toggle('active', index === promoIndex);
+            });
+
+            const dots = promoDotsContainer.querySelectorAll('.promo-dot');
+            dots.forEach((dot, index) => {
+                dot.classList.toggle('active', index === promoIndex);
+            });
+        }
+
+        function setCookie(name, value, days = 30) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+        }
+
+        function getCookie(name) {
+            const cookieString = document.cookie;
+            if (!cookieString) return '';
+            const match = cookieString.split('; ').find(entry => entry.startsWith(`${name}=`));
+            return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : '';
+        }
+
+        function saveSessionState() {
+            const session = {
+                currentUser
+            };
+            const sessionText = JSON.stringify(session);
+            localStorage.setItem('campusCravingsSession', sessionText);
+            setCookie('campusCravingsSession', sessionText, 30);
+        }
+
+        function clearSessionState() {
+            localStorage.removeItem('campusCravingsSession');
+            document.cookie = 'campusCravingsSession=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        }
+
+        function loadPersistedSession() {
+            const rawSession = localStorage.getItem('campusCravingsSession') || getCookie('campusCravingsSession');
+            if (!rawSession) return;
+
+            try {
+                const session = JSON.parse(rawSession);
+                currentUser = session.currentUser || null;
+                adminUser = null;
+            } catch (error) {
+                currentUser = null;
+                adminUser = null;
+                clearSessionState();
+            }
+        }
+
+        async function restoreAdminSession() {
+            if (!supabaseClient) return;
+
+            const { data, error } = await supabaseClient.auth.getSession();
+            if (error || !data.session) return;
+
+            const username = Object.keys(ADMIN_EMAILS).find(
+                adminName => ADMIN_EMAILS[adminName] === data.session.user.email
+            );
+            if (!username) {
+                await supabaseClient.auth.signOut();
+                return;
+            }
+
+            adminUser = { name: username, username };
+            adminPasswordChangeRequired = data.session.user.user_metadata?.password_changed !== true;
+        }
+
+        // INITIALIZATION
+        window.addEventListener('DOMContentLoaded', async () => {
+            loadPersistedSession();
+            await restoreAdminSession();
+            await loadMenuFromRemote();
+            initPromoSlider();
+            renderUserProfile();
+            renderAdminAccess();
+            renderStudentAppView();
+            renderMenu();
+            renderCart();
+            renderActiveOrders();
+            renderAdminOrders();
+            renderMenuEditor();
+            renderOrderHistory();
+            startMenuRealtimeSync();
+            if (adminUser && adminPasswordChangeRequired) {
+                openAdminPasswordModal(true);
+            }
+        });
+
+        // USER PROFILE & LOGIN MANAGEMENT
+        function renderUserProfile() {
+            const container = document.getElementById('userProfileSection');
+            if (currentUser) {
+                const avatarText = (currentUser.name || 'S').charAt(0).toUpperCase();
+                const avatarUrl = currentUser.photo || '';
+                container.innerHTML = `
+                    <div class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 p-1.5 pr-3 rounded-xl cursor-pointer transition" onclick="openProfileModal()">
+                        <div class="w-8 h-8 rounded-lg overflow-hidden bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center text-slate-950 font-bold text-xs shadow-md shadow-orange-500/20">
+                            ${avatarUrl ? `<img src="${avatarUrl}" alt="Profile" class="w-full h-full object-cover" />` : avatarText}
+                        </div>
+                        <div class="text-left hidden md:block">
+                            <p class="text-xs font-bold text-white leading-tight">${currentUser.name}</p>
+                            <p class="text-[10px] font-semibold text-orange-300 tracking-wider uppercase">${currentUser.registerId}</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-down text-xs text-slate-400 ml-1 hidden md:inline"></i>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="openAuthChoiceModal()" class="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition shadow-sm">
+                        <i class="fa-solid fa-right-to-bracket mr-1"></i> Student Login
+                    </button>
+                `;
+            }
+        }
+
+        function renderAdminAccess() {
+            const container = document.getElementById('adminAccessSection');
+            if (adminUser) {
+                container.innerHTML = `
+                    <div class="flex items-center gap-2 bg-emerald-100 border border-emerald-300 text-emerald-800 px-2.5 py-1.5 rounded-xl shadow-sm">
+                        <div class="bg-emerald-600 text-white w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[10px]">A</div>
+                        <span class="text-xs font-bold hidden sm:inline">${adminUser.name}</span>
+                        <button onclick="logoutAdmin()" class="text-[10px] font-bold underline">Logout</button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="openAuthChoiceModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition shadow-sm">
+                        <i class="fa-solid fa-user-shield mr-1"></i> Admin Access
+                    </button>
+                `;
+            }
+        }
+
+        function renderStudentAppView() {
+            const studentShell = document.getElementById('studentAppShell');
+            const adminDashboard = document.getElementById('adminDashboard');
+
+            if (adminUser) {
+                studentShell.classList.add('hidden');
+                adminDashboard.classList.remove('hidden');
+                closeAuthChoiceModal();
+                return;
+            }
+
+            if (currentUser) {
+                studentShell.classList.remove('hidden');
+                adminDashboard.classList.add('hidden');
+                closeAuthChoiceModal();
+                return;
+            }
+
+            studentShell.classList.add('hidden');
+            adminDashboard.classList.add('hidden');
+            openAuthChoiceModal();
+        }
+
+        function openAuthChoiceModal() {
+            const modal = document.getElementById('authChoiceModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeAuthChoiceModal() {
+            const modal = document.getElementById('authChoiceModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function openLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('loginRegisterId').value = currentUser ? currentUser.registerId : '';
+            document.getElementById('loginStudentName').value = currentUser ? currentUser.name : '';
+            const deptSelect = document.getElementById('loginDept');
+            const deptExists = Array.from(deptSelect.options).some(option => option.value === (currentUser ? currentUser.dept : ''));
+            if (deptExists) {
+                deptSelect.value = currentUser.dept;
+            }
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+        }
+
+        function openAdminLoginModal() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+        }
+
+        function closeAdminLoginModal() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+        }
+
+        function openProfileModal() {
+            if (!currentUser) return;
+            const nameField = document.getElementById('profileName');
+            const regField = document.getElementById('profileRegisterId');
+            const deptField = document.getElementById('profileDept');
+            const avatarHolder = document.getElementById('profileAvatarLarge');
+
+            nameField.value = currentUser.name || '';
+            regField.value = currentUser.registerId || '';
+            deptField.value = currentUser.dept || '';
+
+            const avatarText = (currentUser.name || 'S').charAt(0).toUpperCase();
+            if (currentUser.photo) {
+                avatarHolder.innerHTML = `<img src="${currentUser.photo}" alt="Profile" class="w-full h-full object-cover rounded-full" />`;
+            } else {
+                avatarHolder.textContent = avatarText;
+                avatarHolder.innerHTML = avatarText;
+            }
+
+            document.getElementById('profileModal').classList.remove('hidden');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.add('hidden');
+        }
+
+        function uploadProfileImage(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file || !currentUser) return;
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                currentUser.photo = reader.result;
+                saveSessionState();
+                renderUserProfile();
+                openProfileModal();
+                showToast('Profile photo updated.');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveProfileChanges() {
+            if (!currentUser) return;
+
+            const name = document.getElementById('profileName').value.trim();
+            const registerId = document.getElementById('profileRegisterId').value.trim().toUpperCase();
+            const dept = document.getElementById('profileDept').value.trim();
+
+            currentUser.name = name || currentUser.name;
+            currentUser.registerId = registerId || currentUser.registerId;
+            currentUser.dept = dept || currentUser.dept;
+
+            saveSessionState();
+            renderUserProfile();
+            closeProfileModal();
+            showToast('Profile updated successfully.');
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const regId = document.getElementById('loginRegisterId').value.trim().toUpperCase();
+            const name = document.getElementById('loginStudentName').value.trim();
+            const dept = document.getElementById('loginDept').value;
+
+            if (adminUser && supabaseClient) await supabaseClient.auth.signOut();
+            adminUser = null;
+            currentUser = {
+                registerId: regId || "SONA202601",
+                name: name || "Student",
+                dept: dept,
+                photo: currentUser && currentUser.photo ? currentUser.photo : ''
+            };
+
+            saveSessionState();
+            renderUserProfile();
+            renderAdminAccess();
+            renderStudentAppView();
+            closeLoginModal();
+            showToast(`Logged in successfully as ${currentUser.registerId}`);
+        }
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('adminUsername').value.trim().toLowerCase();
+            const password = document.getElementById('adminPassword').value;
+            const email = ADMIN_EMAILS[username];
+
+            if (!email) {
+                showToast('Use admin1, admin2, or admin3 to sign in.');
+                return;
+            }
+
+            if (!supabaseClient) {
+                showToast('Admin sign-in is not configured yet. See the Supabase setup in README.');
+                return;
+            }
+
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error || !data.user) {
+                showToast('Admin login failed. Check the username and password.');
+                return;
+            }
+
+            currentUser = null;
+            adminUser = { name: username, username };
+            adminPasswordChangeRequired = data.user.user_metadata?.password_changed !== true;
+            saveSessionState();
+            renderAdminAccess();
+            renderUserProfile();
+            renderStudentAppView();
+            closeAdminLoginModal();
+            renderAdminOrders();
+            renderMenuEditor();
+            renderActiveOrders();
+            document.getElementById('adminPassword').value = '';
+            if (adminPasswordChangeRequired) {
+                openAdminPasswordModal(true);
+            } else {
+                showToast(`Signed in as ${username}.`);
+            }
+        }
+
+        function openAdminPasswordModal(required) {
+            if (!adminUser) return;
+            adminPasswordChangeRequired = required || adminPasswordChangeRequired;
+            document.getElementById('adminPasswordPrompt').textContent = adminPasswordChangeRequired
+                ? 'Change the temporary password to continue using the admin account.'
+                : 'Set a new password for your account.';
+            document.getElementById('adminPasswordCloseButton').classList.toggle('hidden', adminPasswordChangeRequired);
+            document.getElementById('adminPasswordModal').classList.remove('hidden');
+        }
+
+        function closeAdminPasswordModal() {
+            if (adminPasswordChangeRequired) {
+                showToast('Change your temporary password before continuing.');
+                return;
+            }
+            document.getElementById('adminPasswordModal').classList.add('hidden');
+        }
+
+        async function handleAdminPasswordChange(event) {
+            event.preventDefault();
+            if (!supabaseClient || !adminUser) return;
+
+            const newPassword = document.getElementById('newAdminPassword').value;
+            const confirmPassword = document.getElementById('confirmAdminPassword').value;
+            if (newPassword !== confirmPassword) {
+                showToast('The new passwords do not match.');
+                return;
+            }
+
+            const button = document.getElementById('saveAdminPasswordButton');
+            button.disabled = true;
+            try {
+                const { data: userData } = await supabaseClient.auth.getUser();
+                const { error } = await supabaseClient.auth.updateUser({
+                    password: newPassword,
+                    data: { ...(userData.user?.user_metadata || {}), password_changed: true }
+                });
+                if (error) throw error;
+
+                adminPasswordChangeRequired = false;
+                document.getElementById('newAdminPassword').value = '';
+                document.getElementById('confirmAdminPassword').value = '';
+                document.getElementById('adminPasswordModal').classList.add('hidden');
+                showToast(`Password updated for ${adminUser.username}.`);
+            } catch (error) {
+                showToast(error.message || 'Could not update the password.');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function logoutUser() {
+            currentUser = null;
+            clearSessionState();
+            renderUserProfile();
+            renderStudentAppView();
+            closeProfileModal();
+            showToast('Student logged out successfully.');
+        }
+
+        async function logoutAdmin() {
+            if (supabaseClient) await supabaseClient.auth.signOut();
+            adminUser = null;
+            adminPasswordChangeRequired = false;
+            clearSessionState();
+            renderAdminAccess();
+            renderUserProfile();
+            renderStudentAppView();
+            renderActiveOrders();
+            document.getElementById('adminPasswordModal').classList.add('hidden');
+            showToast('Admin logged out.');
+        }
+
+        // TAB SWITCHING LOGIC
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-view').forEach(view => view.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-orange-500', 'text-orange-600');
+                btn.classList.add('border-transparent', 'text-slate-500');
+            });
+
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabName}`);
+            activeBtn.classList.add('border-orange-500', 'text-orange-600');
+            activeBtn.classList.remove('border-transparent', 'text-slate-500');
+        }
+
+        // MENU RENDER & CART INTERACTIONS
+        function renderMenu() {
+            const foodGrid = document.getElementById('foodGrid');
+            const filterContainer = document.getElementById('categoryFilters');
+
+            filterContainer.innerHTML = categoryOptions.map(category => `
+                <button class="category-pill ${currentCategory === category ? 'active' : 'border border-slate-700 text-slate-300'} px-3 py-2 rounded-xl text-xs font-bold transition duration-200 whitespace-nowrap" onclick="setCategory('${category}')">
+                    ${category}
+                </button>
+            `).join('');
+
+            const visibleItems = currentCategory === 'All'
+                ? foodMenuItems
+                : foodMenuItems.filter(item => item.category === currentCategory || (currentCategory === 'Rice Meals' && ['South Indian Classic', 'Rice Specialties', 'Quick Meals'].includes(item.category)));
+
+            foodGrid.innerHTML = visibleItems.map((item, index) => {
+                const cartItem = cart.find(i => i.id === item.id);
+                const quantity = cartItem ? cartItem.quantity : 0;
+
+                return `
+                    <div class="menu-card bg-slate-900/80 border border-slate-700 rounded-2xl shadow-lg hover:shadow-orange-500/10 transition duration-200 overflow-hidden flex flex-col justify-between group" style="animation-delay: ${index * 80}ms;">
+                        <div>
+                            <div class="relative h-48 w-full overflow-hidden bg-slate-800">
+                                <img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='https://placehold.co/600x400/f97316/ffffff?text=${encodeURIComponent(item.name)}'">
+                                <span class="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border border-slate-700">
+                                    ${item.badge}
+                                </span>
+                                <div class="absolute bottom-3 right-3 bg-slate-950/90 backdrop-blur-md text-orange-300 font-extrabold text-base px-3 py-1 rounded-xl border border-orange-500/20">
+                                    ₹${item.price}
+                                </div>
+                            </div>
+
+                            <div class="p-5 space-y-2">
+                                <div class="text-[11px] font-bold uppercase text-orange-300 tracking-wider">${item.category}</div>
+                                <h4 class="text-lg font-bold text-white">${item.name}</h4>
+                                <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed">${item.description}</p>
+                            </div>
+                        </div>
+
+                        <div class="p-5 pt-0">
+                            ${quantity === 0 ? `
+                                <button onclick="addToCart(${item.id})" class="w-full bg-slate-800 hover:bg-orange-500 hover:text-slate-950 text-slate-100 font-bold py-2.5 px-4 rounded-xl transition duration-200 flex items-center justify-center gap-2 text-sm border border-slate-700 hover:border-orange-400">
+                                    <i class="fa-solid fa-plus"></i> Add to Order
+                                </button>
+                            ` : `
+                                <div class="flex items-center justify-between bg-orange-500/10 border border-orange-500/20 rounded-xl p-1">
+                                    <button onclick="updateQuantity(${item.id}, -1)" class="w-9 h-9 bg-slate-950 text-orange-300 hover:bg-orange-500 hover:text-slate-950 rounded-lg flex items-center justify-center font-bold shadow-sm transition">
+                                        <i class="fa-solid fa-minus text-xs"></i>
+                                    </button>
+                                    <span class="font-extrabold text-orange-200 text-sm px-2">${quantity} in Tray</span>
+                                    <button onclick="updateQuantity(${item.id}, 1)" class="w-9 h-9 bg-slate-950 text-orange-300 hover:bg-orange-500 hover:text-slate-950 rounded-lg flex items-center justify-center font-bold shadow-sm transition">
+                                        <i class="fa-solid fa-plus text-xs"></i>
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const itemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const summaryItems = document.getElementById('summaryItems');
+            const summarySubtotal = document.getElementById('summarySubtotal');
+            if (summaryItems) summaryItems.textContent = itemsCount;
+            if (summarySubtotal) summarySubtotal.textContent = `₹${subtotal}`;
+        }
+
+        function setCategory(category) {
+            currentCategory = category;
+            renderMenu();
+        }
+
+        function addToCart(itemId) {
+            const item = foodMenuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            const existing = cart.find(i => i.id === itemId);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                cart.push({ ...item, quantity: 1 });
+            }
+
+            renderMenu();
+            renderCart();
+            showToast(`Added ${item.name} to order tray`);
+        }
+
+        function updateQuantity(itemId, change) {
+            const index = cart.findIndex(i => i.id === itemId);
+            if (index !== -1) {
+                cart[index].quantity += change;
+                if (cart[index].quantity <= 0) {
+                    cart.splice(index, 1);
+                }
+            }
+            renderMenu();
+            renderCart();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartItemsContainer');
+            const totalBadge = document.getElementById('cartBadgeCount');
+            const cartSubtotalEl = document.getElementById('cartSubtotal');
+            const cartTotalEl = document.getElementById('cartTotalAmount');
+
+            const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+            const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+            totalBadge.innerText = totalQuantity;
+
+            if (cart.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-3 my-auto">
+                        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-300">
+                            <i class="fa-solid fa-basket-shopping text-3xl"></i>
+                        </div>
+                        <p class="font-semibold text-slate-600 text-sm">Your order tray is empty</p>
+                        <p class="text-xs text-slate-400">Choose meal items priced at ₹40 from the canteen menu.</p>
+                    </div>
+                `;
+                document.getElementById('cartFooter').classList.add('opacity-50', 'pointer-events-none');
+            } else {
+                document.getElementById('cartFooter').classList.remove('opacity-50', 'pointer-events-none');
+                container.innerHTML = cart.map(item => `
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <img src="${item.image}" class="w-12 h-12 rounded-lg object-cover">
+                            <div>
+                                <h5 class="text-sm font-bold text-slate-900">${item.name}</h5>
+                                <p class="text-xs text-slate-500">₹${item.price} × ${item.quantity}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center bg-white border border-slate-200 rounded-lg">
+                                <button onclick="updateQuantity(${item.id}, -1)" class="w-7 h-7 text-slate-600 hover:bg-slate-100 rounded-l-lg flex items-center justify-center font-bold text-xs">
+                                    <i class="fa-solid fa-minus"></i>
+                                </button>
+                                <span class="px-2 font-bold text-xs text-slate-800">${item.quantity}</span>
+                                <button onclick="updateQuantity(${item.id}, 1)" class="w-7 h-7 text-slate-600 hover:bg-slate-100 rounded-r-lg flex items-center justify-center font-bold text-xs">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+                            <span class="text-sm font-bold text-slate-900 w-12 text-right">₹${item.price * item.quantity}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            cartSubtotalEl.innerText = `₹${totalAmount}`;
+            cartTotalEl.innerText = `₹${totalAmount}`;
+        }
+
+        function toggleCartDrawer() {
+            const drawer = document.getElementById('cartDrawer');
+            drawer.classList.toggle('hidden');
+        }
+
+        function formatPickupTime(value) {
+            if (!value) return 'Flexible Pickup Time';
+
+            const [hourStr, minute] = value.split(':');
+            const hour = Number(hourStr);
+            const formatted = new Date();
+            formatted.setHours(hour, Number(minute), 0, 0);
+
+            const timeText = new Intl.DateTimeFormat('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            }).format(formatted);
+
+            return `${timeText} IST`;
+        }
+
+        // ORDER PLACEMENT & LIFECYCLE MANAGEMENT
+        function placeOrder() {
+            if (cart.length === 0) return;
+
+            const selectedTime = document.getElementById('pickupSlot').value;
+            const slot = formatPickupTime(selectedTime);
+            const payMode = document.querySelector('input[name="payMode"]:checked').value;
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            // Random Token Number generation (e.g. SONA-T78)
+            const tokenNum = `S-${Math.floor(100 + Math.random() * 900)}`;
+
+            const newOrder = {
+                id: 'ORD' + Date.now().toString().slice(-6),
+                token: tokenNum,
+                student: { ...currentUser },
+                items: [...cart],
+                totalAmount: total,
+                pickupSlot: slot,
+                paymentMode: payMode,
+                timestamp: new Intl.DateTimeFormat('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                }).format(new Date()) + ' IST',
+                statusIndex: 0 // 0: Placed, 1: Preparing, 2: Ready for Pickup, 3: Completed
+            };
+
+            activeOrders.unshift(newOrder);
+
+            // Reset cart
+            cart = [];
+            renderCart();
+            renderMenu();
+            toggleCartDrawer();
+
+            // Render live orders & switch tab
+            renderActiveOrders();
+            switchTab('active-orders');
+
+            showToast(`Order #${newOrder.token} placed successfully!`);
+        }
+
+        // ORDER STATUS LIFECYCLE
+        const statusSteps = [
+            { label: "Order Received", icon: "fa-receipt", color: "bg-blue-500" },
+            { label: "Accepted", icon: "fa-check", color: "bg-violet-500" },
+            { label: "Preparing", icon: "fa-fire-burner", color: "bg-amber-500" },
+            { label: "Ready for Pickup", icon: "fa-bell-concierge", color: "bg-emerald-500" },
+            { label: "Collected", icon: "fa-circle-check", color: "bg-slate-400" }
+        ];
+
+        function renderActiveOrders() {
+            const container = document.getElementById('activeOrdersList');
+            const badge = document.getElementById('activeOrdersBadge');
+
+            const pendingOrders = activeOrders.filter(o => o.statusIndex < 4);
+            if (pendingOrders.length > 0) {
+                badge.innerText = pendingOrders.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            if (activeOrders.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-12 text-center border border-slate-200/80 space-y-3">
+                        <div class="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto text-2xl">
+                            <i class="fa-solid fa-clock"></i>
+                        </div>
+                        <h4 class="text-lg font-bold text-slate-800">No active canteen orders right now</h4>
+                        <p class="text-xs text-slate-500 max-w-sm mx-auto">Place your food order from the menu tab and track preparation in real-time here.</p>
+                        <button onclick="switchTab('menu')" class="bg-orange-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-orange-700 transition">
+                            Explore Canteen Menu
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = activeOrders.map(order => {
+                const isReady = order.statusIndex === 3;
+                return `
+                    <div class="bg-white rounded-2xl border ${isReady ? 'border-2 border-emerald-500 shadow-lg' : 'border-slate-200'} p-6 space-y-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-2xl font-black text-slate-900">Token: ${order.token}</span>
+                                    ${isReady ? `
+                                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full animate-pulse flex items-center gap-1">
+                                            <i class="fa-solid fa-circle text-[8px]"></i> Ready at Counter
+                                        </span>
+                                    ` : ''}
+                                </div>
+                                <p class="text-xs text-slate-500 mt-0.5">Order ID: ${order.id} • Placed at ${order.timestamp}</p>
+                            </div>
+                            <div class="text-left sm:text-right">
+                                <span class="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-lg border border-slate-200">
+                                    <i class="fa-solid fa-clock text-orange-500 mr-1"></i> ${order.pickupSlot}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="py-2">
+                            <div class="grid grid-cols-5 gap-2">
+                                ${statusSteps.map((step, idx) => {
+                                    const isPassed = order.statusIndex >= idx;
+
+                                    return `
+                                        <div class="flex flex-col items-center text-center">
+                                            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold mb-2 transition duration-300 ${
+                                                isPassed ? step.color + ' text-white shadow-md' : 'bg-slate-100 text-slate-400'
+                                            }">
+                                                <i class="fa-solid ${step.icon}"></i>
+                                            </div>
+                                            <span class="text-[11px] font-bold ${isPassed ? 'text-slate-900' : 'text-slate-400'}">${step.label}</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
+                            <div class="space-y-1">
+                                <p class="font-bold text-slate-700 uppercase tracking-wider">Student Profile</p>
+                                <p class="text-slate-900 font-semibold">${order.student.name} (<span class="text-orange-600">${order.student.registerId}</span>)</p>
+                                <p class="text-slate-500">${order.student.dept}</p>
+                            </div>
+                            <div class="space-y-1">
+                                <p class="font-bold text-slate-700 uppercase tracking-wider">Ordered Meal Items</p>
+                                <p class="text-slate-800 font-medium">
+                                    ${order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}
+                                </p>
+                            </div>
+                            <div class="text-left sm:text-right border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4 w-full sm:w-auto">
+                                <p class="text-slate-500">Total Bill</p>
+                                <p class="text-lg font-black text-slate-900">₹${order.totalAmount}</p>
+                            </div>
+                        </div>
+
+                        ${order.statusIndex === 3 ? `
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-sm text-emerald-800 font-semibold">
+                                <i class="fa-solid fa-bell mr-2"></i> Notification: Your order is ready. Please collect it from the canteen counter.
+                            </div>
+                        ` : ''}
+
+                        <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+                            <div class="text-xs font-semibold text-slate-500">
+                                ${adminUser ? 'Admin controls active' : 'Login as admin to manage this order'}
+                            </div>
+                            <div class="flex justify-end gap-3">
+                                ${order.statusIndex === 0 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 1)" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
+                                        Accept Order
+                                    </button>
+                                ` : order.statusIndex === 1 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 2)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
+                                        Start Preparation
+                                    </button>
+                                ` : order.statusIndex === 2 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 3)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
+                                        Mark Ready & Notify
+                                    </button>
+                                ` : order.statusIndex === 3 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 4)" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
+                                        Mark Collected
+                                    </button>
+                                ` : `
+                                    <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
+                                        <i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Order Completed
+                                    </span>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateOrderStatus(orderId, nextStatusIndex) {
+            if (!adminUser) {
+                showToast('Admin access required to update order status.');
+                return;
+            }
+
+            const order = activeOrders.find(o => o.id === orderId);
+            if (!order) return;
+
+            if (nextStatusIndex < order.statusIndex) return;
+
+            order.statusIndex = nextStatusIndex;
+
+            if (order.statusIndex === 3) {
+                notifyStudentOrderReady(order);
+                showToast(`Order ${order.token} is ready for pickup! Student notified.`);
+            } else if (order.statusIndex === 4) {
+                orderHistory.unshift({ ...order });
+                renderOrderHistory();
+                activeOrders = activeOrders.filter(o => o.id !== orderId);
+                showToast(`Order ${order.token} has been collected.`);
+            } else {
+                showToast(`Order ${order.token} updated: ${statusSteps[order.statusIndex].label}`);
+            }
+
+            renderAdminOrders();
+            renderActiveOrders();
+        }
+
+        function notifyStudentOrderReady(order) {
+            const message = `Your order ${order.token} is ready. Please collect it from the canteen counter.`;
+            if (currentUser && currentUser.registerId === order.student.registerId) {
+                showToast(message);
+            }
+            const readyNotice = order.readyNotice || message;
+            order.readyNotice = readyNotice;
+        }
+
+        function advanceOrderStatus(orderId) {
+            const order = activeOrders.find(o => o.id === orderId);
+            if (!order) return;
+
+            if (order.statusIndex < 4) {
+                updateOrderStatus(orderId, order.statusIndex + 1);
+            }
+        }
+
+        function simulateOrderStatusProgression() {
+            activeOrders.forEach(order => {
+                if (order.statusIndex < 4) {
+                    updateOrderStatus(order.id, Math.min(order.statusIndex + 1, 4));
+                }
+            });
+        }
+
+        function renderAdminOrders() {
+            const container = document.getElementById('adminOrderList');
+            const badge = document.getElementById('adminOrdersBadge');
+            const orders = activeOrders.filter(order => order.statusIndex < 4);
+
+            badge.textContent = `${orders.length} Active`;
+
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-6 text-center text-slate-500">
+                        <i class="fa-solid fa-box-open text-2xl mb-3"></i>
+                        <p class="font-bold text-slate-700">No pending orders</p>
+                        <p class="text-xs mt-1">New student orders will appear here.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = orders.map(order => {
+                const statusText = statusSteps[order.statusIndex]?.label || 'Received';
+                return `
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div class="flex flex-col sm:flex-row justify-between gap-3">
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-lg font-black text-slate-900">${order.token}</span>
+                                    <span class="bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-full">${statusText}</span>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1">${order.student.name} • ${order.student.registerId}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-slate-500">Pickup Slot</p>
+                                <p class="font-bold text-slate-800 text-xs">${order.pickupSlot}</p>
+                            </div>
+                        </div>
+
+                        <div class="text-xs text-slate-600">
+                            ${order.items.map(item => `${item.name} x${item.quantity}`).join(', ')}
+                        </div>
+
+                        <div class="flex justify-between items-center gap-3">
+                            <span class="text-sm font-black text-slate-900">₹${order.totalAmount}</span>
+                            <div class="flex gap-2 flex-wrap justify-end">
+                                ${order.statusIndex === 0 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 1)" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Accept</button>
+                                ` : ''}
+                                ${order.statusIndex === 1 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 2)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Prepare</button>
+                                ` : ''}
+                                ${order.statusIndex === 2 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 3)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Ready</button>
+                                ` : ''}
+                                ${order.statusIndex === 3 ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 4)" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg">Collected</button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function addNewMenuItem() {
+            const newItem = {
+                id: Date.now(),
+                name: 'New Menu Item',
+                price: 40,
+                category: 'Rice Meals',
+                description: 'Freshly prepared menu item added by admin.',
+                image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80',
+                badge: 'New'
+            };
+
+            try {
+                await saveMenuItems([newItem, ...foodMenuItems]);
+                renderMenuEditor();
+                renderMenu();
+                showToast('New menu item created. Update details and save.');
+            } catch (error) {
+                showToast(error.message || 'Could not save the new menu item.');
+            }
+        }
+
+        async function removeMenuItem(itemId) {
+            const item = foodMenuItems.find(menuItem => menuItem.id === itemId);
+            if (!item) return;
+
+            const confirmed = window.confirm(`Remove "${item.name}" from the menu?`);
+            if (!confirmed) return;
+
+            try {
+                const updatedMenu = foodMenuItems.filter(menuItem => menuItem.id !== itemId);
+                await saveMenuItems(updatedMenu);
+                renderMenu();
+                renderMenuEditor();
+                showToast(`${item.name} removed from the menu.`);
+            } catch (error) {
+                showToast(error.message || 'Could not remove the menu item.');
+            }
+        }
+
+        async function uploadMenuImage(itemId, event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            if (!supabaseClient || !adminUser) {
+                showToast('Shared image storage is not configured or you are not signed in as an admin.');
+                return;
+            }
+
+            const item = foodMenuItems.find(menuItem => menuItem.id === itemId);
+            if (!item) return;
+
+            try {
+                const objectPath = `${itemId}/menu-image`;
+                const { data, error } = await supabaseClient.storage
+                    .from('menu-images')
+                    .upload(objectPath, file, { upsert: true, contentType: file.type });
+                if (error) throw error;
+
+                const imageUrl = `${supabaseClient.storage.from('menu-images').getPublicUrl(data.path).data.publicUrl}?v=${Date.now()}`;
+                const updatedMenu = foodMenuItems.map(menuItem => menuItem.id === itemId
+                    ? { ...menuItem, image: imageUrl }
+                    : menuItem);
+                await saveMenuItems(updatedMenu);
+
+                const imageInput = document.getElementById(`image-${itemId}`);
+                if (imageInput) imageInput.value = imageUrl;
+                renderMenu();
+                renderMenuEditor();
+                showToast(`${item.name} image updated.`);
+            } catch (error) {
+                showToast(error.message || 'Could not upload the menu image.');
+            }
+        }
+
+        function renderMenuEditor() {
+            const container = document.getElementById('menuEditorList');
+            container.innerHTML = `
+                <div class="mb-4">
+                    <button onclick="addNewMenuItem()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition">
+                        <i class="fa-solid fa-plus mr-2"></i>Add New Menu Item
+                    </button>
+                </div>
+                ${foodMenuItems.map(item => `
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-3">
+                        <div class="flex items-center gap-3">
+                            <div class="menu-image-shell">
+                                <img src="${item.image}" onerror="this.src='https://placehold.co/600x400/f97316/ffffff?text=${encodeURIComponent(item.name)}'" class="w-full h-full object-cover" />
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-bold text-slate-900 text-sm">${item.name}</p>
+                                <p class="text-[10px] uppercase tracking-[0.18em] text-slate-500">${item.category}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-[10px] uppercase tracking-[0.18em] text-slate-500">Menu Name</label>
+                            <input id="name-${item.id}" value="${item.name}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800" />
+
+                            <label class="text-[10px] uppercase tracking-[0.18em] text-slate-500">Category</label>
+                            <select id="category-${item.id}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800">
+                                ${categoryOptions.filter(c => c !== 'All').map(cat => `
+                                    <option value="${cat}" ${item.category === cat ? 'selected' : ''}>${cat}</option>
+                                `).join('')}
+                            </select>
+
+                            <label class="text-[10px] uppercase tracking-[0.18em] text-slate-500">Price</label>
+                            <input id="price-${item.id}" type="number" value="${item.price}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800" />
+
+                            <label class="text-[10px] uppercase tracking-[0.18em] text-slate-500">Image URL or Local Upload</label>
+                            <div class="flex gap-2">
+                                <input id="image-${item.id}" value="${item.image}" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800" />
+                                <label class="inline-flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer whitespace-nowrap">
+                                    Upload
+                                    <input type="file" accept="image/*" class="hidden" onchange="uploadMenuImage(${item.id}, event)" />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="saveMenuItem(${item.id})" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm transition">
+                                Save Changes
+                            </button>
+                            <button onclick="removeMenuItem(${item.id})" class="bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-2.5 rounded-xl text-sm transition">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        async function saveMenuItem(itemId) {
+            const item = foodMenuItems.find(menuItem => menuItem.id === itemId);
+            if (!item) return;
+
+            const name = document.getElementById(`name-${itemId}`).value.trim();
+            const category = document.getElementById(`category-${itemId}`).value;
+            const price = Number(document.getElementById(`price-${itemId}`).value || 0);
+            const image = document.getElementById(`image-${itemId}`).value.trim();
+
+            const updatedItem = {
+                ...item,
+                name: name || item.name,
+                category: category || item.category,
+                price: price > 0 ? price : item.price,
+                image: image || item.image,
+                description: item.description || 'Freshly prepared menu item'
+            };
+
+            try {
+                const updatedMenu = foodMenuItems.map(menuItem => menuItem.id === itemId ? updatedItem : menuItem);
+                await saveMenuItems(updatedMenu);
+                renderMenu();
+                renderMenuEditor();
+                renderAdminOrders();
+                showToast(`${updatedItem.name} updated successfully.`);
+            } catch (error) {
+                showToast(error.message || 'Could not save the menu item.');
+            }
+        }
+
+        // ORDER HISTORY RENDER
+        function renderOrderHistory() {
+            const container = document.getElementById('orderHistoryList');
+
+            if (orderHistory.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-8 text-center border border-slate-200/80 text-slate-400 text-sm">
+                        No previous order history recorded yet.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = orderHistory.map(order => `
+                <div class="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-extrabold text-slate-900 text-sm">Token: ${order.token}</span>
+                            <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded">
+                                ${order.pickupSlot}
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500">
+                            ${order.items.map(i => `${i.name} × ${i.quantity}`).join(', ')}
+                        </p>
+                    </div>
+                    <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block">Amount Paid</span>
+                            <span class="text-sm font-bold text-slate-900">₹${order.totalAmount}</span>
+                        </div>
+                        <span class="text-emerald-600 bg-emerald-50 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
+                            <i class="fa-solid fa-circle-check"></i> Collected
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // TOAST NOTIFICATIONS
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+
+            toastMessage.innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
