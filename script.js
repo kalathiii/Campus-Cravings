@@ -188,6 +188,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
         const MENU_STORAGE_KEY = 'campusCravingsMenu';
         let menuRealtimeChannel = null;
+        let orderRealtimeChannel = null;
 
         function loadMenuItems() {
             try {
@@ -283,6 +284,96 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                     renderAdminOrders();
                 })
                 .subscribe();
+        }
+
+        function mapSharedOrder(row) {
+            return {
+                id: row.id,
+                token: row.token,
+                student: row.student,
+                items: row.items,
+                totalAmount: Number(row.total_amount),
+                pickupSlot: row.pickup_slot,
+                paymentMode: row.payment_mode,
+                timestamp: row.placed_label,
+                statusIndex: Number(row.status_index),
+                claimedBy: row.claimed_by,
+                claimedByName: row.claimed_by_name,
+                claimedAt: row.claimed_at
+            };
+        }
+
+        async function loadSharedOrders() {
+            if (!supabaseClient || !adminUser) return;
+
+            const { data, error } = await supabaseClient
+                .from('canteen_orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Shared order load failed:', error);
+                showToast('Order storage is unavailable. Run the updated setup.sql in Supabase.');
+                return;
+            }
+
+            const orders = (data || []).map(mapSharedOrder);
+            activeOrders = orders.filter(order => order.statusIndex < 4);
+            orderHistory = orders.filter(order => order.statusIndex === 4);
+            renderActiveOrders();
+            renderAdminOrders();
+            renderOrderHistory();
+        }
+
+        function applySharedOrder(row) {
+            const order = mapSharedOrder(row);
+            if (order.statusIndex === 4) {
+                activeOrders = activeOrders.filter(existing => existing.id !== order.id);
+                if (!orderHistory.some(existing => existing.id === order.id)) {
+                    orderHistory.unshift(order);
+                }
+            } else {
+                const existingIndex = activeOrders.findIndex(existing => existing.id === order.id);
+                if (existingIndex === -1) {
+                    activeOrders.unshift(order);
+                } else {
+                    activeOrders[existingIndex] = order;
+                }
+            }
+
+            renderActiveOrders();
+            renderAdminOrders();
+            renderOrderHistory();
+        }
+
+        function startOrderRealtimeSync() {
+            if (!supabaseClient || !adminUser || orderRealtimeChannel) return;
+
+            orderRealtimeChannel = supabaseClient
+                .channel('campus-cravings-orders')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'canteen_orders'
+                }, payload => {
+                    if (payload.eventType === 'DELETE' && payload.old?.id) {
+                        activeOrders = activeOrders.filter(order => order.id !== payload.old.id);
+                        renderActiveOrders();
+                        renderAdminOrders();
+                        return;
+                    }
+
+                    if (payload.new?.id) applySharedOrder(payload.new);
+                })
+                .subscribe(status => {
+                    if (status === 'SUBSCRIBED') loadSharedOrders();
+                });
+        }
+
+        function stopOrderRealtimeSync() {
+            if (!supabaseClient || !orderRealtimeChannel) return;
+            supabaseClient.removeChannel(orderRealtimeChannel);
+            orderRealtimeChannel = null;
         }
 
         let foodMenuItems = loadMenuItems();
@@ -424,7 +515,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 return;
             }
 
-            adminUser = { name: username, username };
+            adminUser = { name: username, username, id: data.session.user.id };
             adminPasswordChangeRequired = data.session.user.user_metadata?.password_changed !== true;
         }
 
@@ -433,6 +524,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             loadPersistedSession();
             await restoreAdminSession();
             await loadMenuFromRemote();
+            await loadSharedOrders();
             initPromoSlider();
             renderUserProfile();
             renderAdminAccess();
@@ -444,6 +536,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             renderMenuEditor();
             renderOrderHistory();
             startMenuRealtimeSync();
+            startOrderRealtimeSync();
             if (adminUser && adminPasswordChangeRequired) {
                 openAdminPasswordModal(true);
             }
@@ -615,7 +708,10 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const name = document.getElementById('loginStudentName').value.trim();
             const dept = document.getElementById('loginDept').value;
 
-            if (adminUser && supabaseClient) await supabaseClient.auth.signOut();
+            if (adminUser && supabaseClient) {
+                stopOrderRealtimeSync();
+                await supabaseClient.auth.signOut();
+            }
             adminUser = null;
             currentUser = {
                 registerId: regId || "SONA202601",
@@ -655,8 +751,10 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }
 
             currentUser = null;
-            adminUser = { name: username, username };
+            adminUser = { name: username, username, id: data.user.id };
             adminPasswordChangeRequired = data.user.user_metadata?.password_changed !== true;
+            await loadSharedOrders();
+            startOrderRealtimeSync();
             saveSessionState();
             renderAdminAccess();
             renderUserProfile();
@@ -734,6 +832,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         }
 
         async function logoutAdmin() {
+            stopOrderRealtimeSync();
             if (supabaseClient) await supabaseClient.auth.signOut();
             adminUser = null;
             adminPasswordChangeRequired = false;
@@ -938,8 +1037,16 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         }
 
         // ORDER PLACEMENT & LIFECYCLE MANAGEMENT
-        function placeOrder() {
+        async function placeOrder() {
             if (cart.length === 0) return;
+            if (!currentUser) {
+                showToast('Log in as a student before placing an order.');
+                return;
+            }
+            if (!supabaseClient) {
+                showToast('Shared order storage is not configured.');
+                return;
+            }
 
             const selectedTime = document.getElementById('pickupSlot').value;
             const slot = formatPickupTime(selectedTime);
@@ -949,21 +1056,53 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             // Random Token Number generation (e.g. SONA-T78)
             const tokenNum = `S-${Math.floor(100 + Math.random() * 900)}`;
 
+            const placedLabel = new Intl.DateTimeFormat('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            }).format(new Date()) + ' IST';
+            const orderStudent = {
+                name: currentUser.name,
+                registerId: currentUser.registerId,
+                dept: currentUser.dept
+            };
+            const orderItems = cart.map(item => ({
+                id: item.id,
+                name: item.name,
+                price: Number(item.price),
+                quantity: Number(item.quantity)
+            }));
+            const { data: orderId, error } = await supabaseClient.rpc('place_canteen_order', {
+                p_order_data: {
+                    token: tokenNum,
+                    student: orderStudent,
+                    items: orderItems,
+                    total_amount: total,
+                    pickup_slot: slot,
+                    payment_mode: payMode,
+                    placed_label: placedLabel
+                }
+            });
+
+            if (error || !orderId) {
+                console.error('Order submission failed:', error);
+                showToast('Could not place your order. Please try again.');
+                return;
+            }
+
             const newOrder = {
-                id: 'ORD' + Date.now().toString().slice(-6),
+                id: orderId,
                 token: tokenNum,
-                student: { ...currentUser },
-                items: [...cart],
+                student: orderStudent,
+                items: orderItems,
                 totalAmount: total,
                 pickupSlot: slot,
                 paymentMode: payMode,
-                timestamp: new Intl.DateTimeFormat('en-IN', {
-                    timeZone: 'Asia/Kolkata',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                }).format(new Date()) + ' IST',
-                statusIndex: 0 // 0: Placed, 1: Preparing, 2: Ready for Pickup, 3: Completed
+                timestamp: placedLabel,
+                statusIndex: 0,
+                claimedBy: null,
+                claimedByName: null
             };
 
             activeOrders.unshift(newOrder);
@@ -989,6 +1128,16 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             { label: "Ready for Pickup", icon: "fa-bell-concierge", color: "bg-emerald-500" },
             { label: "Collected", icon: "fa-circle-check", color: "bg-slate-400" }
         ];
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]);
+        }
 
         function renderActiveOrders() {
             const container = document.getElementById('activeOrdersList');
@@ -1117,8 +1266,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }).join('');
         }
 
-        function updateOrderStatus(orderId, nextStatusIndex) {
-            if (!adminUser) {
+        async function updateOrderStatus(orderId, nextStatusIndex) {
+            if (!adminUser || !supabaseClient) {
                 showToast('Admin access required to update order status.');
                 return;
             }
@@ -1126,20 +1275,49 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const order = activeOrders.find(o => o.id === orderId);
             if (!order) return;
 
-            if (nextStatusIndex < order.statusIndex) return;
+            if (nextStatusIndex !== order.statusIndex + 1) return;
 
-            order.statusIndex = nextStatusIndex;
+            const { data, error } = nextStatusIndex === 1
+                ? await supabaseClient.rpc('claim_canteen_order', { p_order_id: orderId })
+                : await supabaseClient.rpc('advance_canteen_order', {
+                    p_order_id: orderId,
+                    p_next_status: nextStatusIndex
+                });
 
-            if (order.statusIndex === 3) {
-                notifyStudentOrderReady(order);
-                showToast(`Order ${order.token} is ready for pickup! Student notified.`);
-            } else if (order.statusIndex === 4) {
-                orderHistory.unshift({ ...order });
+            if (error) {
+                console.error('Order status update failed:', error);
+                showToast('Could not update this order. Please try again.');
+                return;
+            }
+
+            if (!data) {
+                showToast(nextStatusIndex === 1
+                    ? 'Another admin already took this order.'
+                    : 'This order was updated by another admin.');
+                await loadSharedOrders();
+                return;
+            }
+
+            const updatedOrder = activeOrders.find(existing => existing.id === orderId) || order;
+            updatedOrder.statusIndex = nextStatusIndex;
+            if (nextStatusIndex === 1) {
+                updatedOrder.claimedBy = adminUser.id;
+                updatedOrder.claimedByName = adminUser.name;
+                updatedOrder.claimedAt = new Date().toISOString();
+            }
+
+            if (nextStatusIndex === 3) {
+                notifyStudentOrderReady(updatedOrder);
+                showToast(`Order ${updatedOrder.token} is ready for pickup! Student notified.`);
+            } else if (nextStatusIndex === 4) {
+                if (!orderHistory.some(existing => existing.id === orderId)) {
+                    orderHistory.unshift({ ...updatedOrder });
+                }
                 renderOrderHistory();
                 activeOrders = activeOrders.filter(o => o.id !== orderId);
-                showToast(`Order ${order.token} has been collected.`);
+                showToast(`Order ${updatedOrder.token} has been collected.`);
             } else {
-                showToast(`Order ${order.token} updated: ${statusSteps[order.statusIndex].label}`);
+                showToast(`Order ${updatedOrder.token} updated: ${statusSteps[nextStatusIndex].label}`);
             }
 
             renderAdminOrders();
@@ -1192,40 +1370,50 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
             container.innerHTML = orders.map(order => {
                 const statusText = statusSteps[order.statusIndex]?.label || 'Received';
+                const claimedByCurrentAdmin = order.claimedBy === adminUser?.id;
+                const claimedByAnotherAdmin = Boolean(order.claimedBy && !claimedByCurrentAdmin);
                 return `
                     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
                         <div class="flex flex-col sm:flex-row justify-between gap-3">
                             <div>
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-lg font-black text-slate-900">${order.token}</span>
+                                    <span class="text-lg font-black text-slate-900">${escapeHtml(order.token)}</span>
                                     <span class="bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-full">${statusText}</span>
                                 </div>
-                                <p class="text-xs text-slate-500 mt-1">${order.student.name} • ${order.student.registerId}</p>
+                                <p class="text-xs text-slate-500 mt-1">${escapeHtml(order.student.name)} • ${escapeHtml(order.student.registerId)}</p>
+                                <p class="text-xs font-semibold ${claimedByAnotherAdmin ? 'text-amber-700' : 'text-slate-500'} mt-1">
+                                    ${order.claimedByName
+                                        ? `Taken by ${escapeHtml(order.claimedByName)}${claimedByCurrentAdmin ? ' (you)' : ''}`
+                                        : 'Available to claim'}
+                                </p>
                             </div>
                             <div class="text-right">
                                 <p class="text-xs text-slate-500">Pickup Slot</p>
-                                <p class="font-bold text-slate-800 text-xs">${order.pickupSlot}</p>
+                                <p class="font-bold text-slate-800 text-xs">${escapeHtml(order.pickupSlot)}</p>
                             </div>
                         </div>
 
                         <div class="text-xs text-slate-600">
-                            ${order.items.map(item => `${item.name} x${item.quantity}`).join(', ')}
+                            ${order.items.map(item => `${escapeHtml(item.name)} x${Number(item.quantity) || 0}`).join(', ')}
                         </div>
 
                         <div class="flex justify-between items-center gap-3">
                             <span class="text-sm font-black text-slate-900">₹${order.totalAmount}</span>
                             <div class="flex gap-2 flex-wrap justify-end">
-                                ${order.statusIndex === 0 ? `
-                                    <button onclick="updateOrderStatus('${order.id}', 1)" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Accept</button>
+                                ${order.statusIndex === 0 && !order.claimedBy ? `
+                                    <button onclick="updateOrderStatus('${order.id}', 1)" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Take & Accept</button>
                                 ` : ''}
-                                ${order.statusIndex === 1 ? `
+                                ${order.statusIndex === 1 && claimedByCurrentAdmin ? `
                                     <button onclick="updateOrderStatus('${order.id}', 2)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Prepare</button>
                                 ` : ''}
-                                ${order.statusIndex === 2 ? `
+                                ${order.statusIndex === 2 && claimedByCurrentAdmin ? `
                                     <button onclick="updateOrderStatus('${order.id}', 3)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg">Ready</button>
                                 ` : ''}
-                                ${order.statusIndex === 3 ? `
+                                ${order.statusIndex === 3 && claimedByCurrentAdmin ? `
                                     <button onclick="updateOrderStatus('${order.id}', 4)" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg">Collected</button>
+                                ` : ''}
+                                ${claimedByAnotherAdmin ? `
+                                    <span class="text-xs font-bold text-amber-700">Already taken</span>
                                 ` : ''}
                             </div>
                         </div>
