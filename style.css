@@ -1,0 +1,77 @@
+body {
+            font-family: 'Inter', sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(250, 204, 21, 0.20), transparent 24%),
+                radial-gradient(circle at bottom right, rgba(253, 224, 71, 0.18), transparent 26%),
+                #ffffff;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .dark-panel {
+            background: linear-gradient(135deg, #fff8d6 0%, #fffaf0 100%);
+            border: 1px solid rgba(250, 204, 21, 0.40);
+            box-shadow: 0 18px 40px rgba(250, 204, 21, 0.18);
+            backdrop-filter: blur(12px);
+        }
+        .category-pill.active {
+            background: linear-gradient(135deg, #facc15, #fbbf24);
+            color: #1f2937;
+            border-color: transparent;
+            box-shadow: 0 12px 25px rgba(250, 204, 21, 0.28);
+        }
+        @keyframes menuCardIn {
+            from {
+                opacity: 0;
+                transform: translateY(18px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .menu-card {
+            animation: menuCardIn 0.55s ease both;
+            transform-origin: center;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+        .menu-card:hover {
+            transform: translateY(-6px) scale(1.01);
+            box-shadow: 0 18px 30px rgba(249, 115, 22, 0.18);
+            border-color: rgba(250, 204, 21, 0.55);
+        }
+        .promo-slider {
+            position: relative;
+            overflow: hidden;
+            min-height: 210px;
+        }
+        .promo-slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transform: translateX(40px);
+            pointer-events: none;
+            transition: transform 0.7s ease, opacity 0.7s ease;
+        }
+        .promo-slide.active {
+            position: relative;
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+        .promo-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.18);
+            transition: all 0.25s ease;
+        }
+        .promo-dot.active {
+            background: #f59e0b;
+            width: 26px;
+            border-radius: 999px;
+        }
