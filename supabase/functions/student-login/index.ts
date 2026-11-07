@@ -13,6 +13,11 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
     });
 }
 
+async function hashConfirmationToken(token: string) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 Deno.serve(async request => {
     if (request.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -29,23 +34,44 @@ Deno.serve(async request => {
         return jsonResponse({ error: 'Student login is not configured.' }, 500);
     }
 
-    let identifier = '';
-    let password = '';
+    let body: Record<string, unknown>;
     try {
-        const body = await request.json();
-        identifier = typeof body.identifier === 'string' ? body.identifier.trim() : '';
-        password = typeof body.password === 'string' ? body.password : '';
+        body = await request.json();
     } catch {
-        return jsonResponse({ error: 'Invalid login details.' }, 400);
-    }
-
-    if (!identifier || !password || password.length > 256 || identifier.length > 256) {
         return jsonResponse({ error: 'Invalid login details.' }, 400);
     }
 
     const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
         auth: { autoRefreshToken: false, persistSession: false }
     });
+
+    if (body.action === 'confirmation-status') {
+        const userId = typeof body.userId === 'string' ? body.userId : '';
+        const token = typeof body.token === 'string' ? body.token : '';
+        if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[a-f0-9]{64}$/.test(token)) {
+            return jsonResponse({ error: 'Confirmation check unavailable.' }, 400);
+        }
+
+        const { data, error } = await serviceClient.auth.admin.getUserById(userId);
+        const user = data?.user;
+        const tokenHash = await hashConfirmationToken(token);
+        if (error || !user || user.user_metadata?.confirmation_wait_hash !== tokenHash) {
+            return jsonResponse({ error: 'Confirmation check unavailable.' }, 404);
+        }
+
+        if (!user.email_confirmed_at) return jsonResponse({ confirmed: false });
+
+        const { confirmation_wait_hash: _confirmationWaitHash, ...userMetadata } = user.user_metadata || {};
+        await serviceClient.auth.admin.updateUserById(user.id, { user_metadata: userMetadata });
+        return jsonResponse({ confirmed: true });
+    }
+
+    const identifier = typeof body.identifier === 'string' ? body.identifier.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!identifier || !password || password.length > 256 || identifier.length > 256) {
+        return jsonResponse({ error: 'Invalid login details.' }, 400);
+    }
+
     let accountEmail = '';
 
     if (identifier.includes('@')) {

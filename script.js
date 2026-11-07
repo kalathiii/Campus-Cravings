@@ -342,6 +342,19 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             sessionStorage.setItem('campusCravingsPendingSignup', JSON.stringify(pendingStudentSignup));
         }
 
+        function createConfirmationWaitToken() {
+            return Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function hashConfirmationWaitToken(token) {
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+            return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        function getConfirmationRedirectUrl() {
+            return new URL(window.location.pathname, window.location.origin).toString();
+        }
+
         function restorePendingStudentSignup() {
             try {
                 const rawSignup = sessionStorage.getItem('campusCravingsPendingSignup');
@@ -504,6 +517,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         let adminUser = null;
         let adminPasswordChangeRequired = false;
         let pendingStudentSignup = null;
+        let confirmationPollTimer = null;
+        let isCheckingSignupConfirmation = false;
         let recoveryVerification = null;
         const otpCooldownTimers = {};
 
@@ -649,6 +664,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 document.getElementById('signupAge').value = calculateAge(dateOfBirthInput.value);
             });
             await restoreAdminSession();
+            startStudentConfirmationCheck();
             await loadMenuFromRemote();
             await loadSharedOrders();
             initPromoSlider();
@@ -798,6 +814,67 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
         function closeLoginModal() {
             document.getElementById('loginModal').classList.add('hidden');
+        }
+
+        function stopStudentConfirmationCheck() {
+            if (confirmationPollTimer) clearTimeout(confirmationPollTimer);
+            confirmationPollTimer = null;
+        }
+
+        function startStudentConfirmationCheck() {
+            if (!supabaseClient || !pendingStudentSignup?.email || !pendingStudentSignup?.userId || !pendingStudentSignup?.token || confirmationPollTimer || isCheckingSignupConfirmation) return;
+
+            const checkConfirmation = async () => {
+                confirmationPollTimer = null;
+                if (!pendingStudentSignup?.email || !pendingStudentSignup?.token) return;
+                isCheckingSignupConfirmation = true;
+                try {
+                    const { data, error } = await supabaseClient.functions.invoke('student-login', {
+                        body: {
+                            action: 'confirmation-status',
+                            userId: pendingStudentSignup.userId,
+                            token: pendingStudentSignup.token
+                        }
+                    });
+                    if (!error && data?.confirmed) {
+                        stopStudentConfirmationCheck();
+                        const signupEmail = pendingStudentSignup.email;
+                        const password = document.getElementById('signupPassword').value;
+                        if (password) {
+                            const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+                                email: signupEmail,
+                                password
+                            });
+                            if (!signInError && signInData.user) {
+                                try {
+                                    await finishStudentSignIn(signInData.user.id);
+                                    showToast('Email confirmed. You are signed in.');
+                                    return;
+                                } catch (profileError) {
+                                    await supabaseClient.auth.signOut();
+                                    console.error('Student sign-in after confirmation failed:', profileError);
+                                }
+                            }
+                        }
+
+                        document.getElementById('loginIdentifier').value = signupEmail;
+                        pendingStudentSignup = null;
+                        persistPendingStudentSignup();
+                        showStudentAuthPane('login');
+                        openLoginModal();
+                        showToast('Email confirmed. Log in to continue.');
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('Student email confirmation check failed:', error);
+                } finally {
+                    isCheckingSignupConfirmation = false;
+                }
+
+                if (pendingStudentSignup?.token) confirmationPollTimer = setTimeout(checkConfirmation, 5000);
+            };
+
+            checkConfirmation();
         }
 
         function openAdminLoginModal() {
@@ -973,6 +1050,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             if (button) button.disabled = true;
             try {
                 const email = document.getElementById('signupEmail').value.trim().toLowerCase();
+                const confirmationWaitToken = createConfirmationWaitToken();
                 const signupData = {
                     full_name: document.getElementById('signupName').value.trim(),
                     register_no: document.getElementById('signupRegisterNo').value.trim().toUpperCase(),
@@ -985,7 +1063,14 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 const { data, error } = await supabaseClient.auth.signUp({
                     email,
                     password,
-                    options: { data: { account_type: 'student', ...signupData } }
+                    options: {
+                        emailRedirectTo: getConfirmationRedirectUrl(),
+                        data: {
+                            account_type: 'student',
+                            ...signupData,
+                            confirmation_wait_hash: await hashConfirmationWaitToken(confirmationWaitToken)
+                        }
+                    }
                 });
                 if (error || !data.user) {
                     console.error('Student signup failed:', error);
@@ -1006,10 +1091,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 }
                 if (data.session) await supabaseClient.auth.signOut();
 
-                pendingStudentSignup = { email };
+                pendingStudentSignup = { email, userId: data.user.id, token: confirmationWaitToken };
                 persistPendingStudentSignup();
                 showStudentAuthPane('verify');
                 startOtpCooldown('signup');
+                startStudentConfirmationCheck();
                 showToast('A confirmation link was sent to your email.');
             } catch (error) {
                 showToast(error.message || 'Could not create the student account.');
@@ -1045,7 +1131,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             if (!supabaseClient || !pendingStudentSignup) return;
             const { error } = await supabaseClient.auth.resend({
                 type: 'signup',
-                email: pendingStudentSignup.email
+                email: pendingStudentSignup.email,
+                options: { emailRedirectTo: getConfirmationRedirectUrl() }
             });
             if (error) {
                 showToast(error.message || 'Could not resend the confirmation email.');
