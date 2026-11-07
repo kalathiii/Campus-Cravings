@@ -624,11 +624,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             try {
                 currentUser = await loadStudentProfile(data.session.user.id);
                 adminUser = null;
+                pendingStudentSignup = null;
+                persistPendingStudentSignup();
             } catch (error) {
                 const userMetadata = data.session.user.user_metadata || {};
                 if (userMetadata.account_type === 'student' && pendingStudentSignup) {
-                    pendingStudentSignup.emailVerified = Boolean(data.session.user.email_confirmed_at);
-                    persistPendingStudentSignup();
                     return;
                 }
                 console.error('Student profile restore failed:', error);
@@ -778,25 +778,16 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             document.getElementById('studentAuthTitle').textContent = {
                 login: 'Student Login',
                 signup: 'Create Student Account',
-                verify: 'Verify Contact Details',
+                verify: 'Confirm Email',
                 recovery: 'Reset Password'
             }[paneName] || 'Student Login';
+            if (paneName === 'verify') {
+                document.getElementById('pendingSignupEmail').textContent = pendingStudentSignup?.email || 'your email';
+            }
             if (paneName === 'recovery') {
                 document.getElementById('recoveryRequestForm').classList.remove('hidden');
                 document.getElementById('recoveryVerifyForm').classList.add('hidden');
                 recoveryVerification = null;
-            }
-            if (paneName === 'verify') updateStudentOtpRequirements();
-        }
-
-        function updateStudentOtpRequirements() {
-            document.getElementById('signupEmailOtp').required = !pendingStudentSignup?.emailVerified;
-            const emailResendButton = document.getElementById('resendEmailOtp');
-            if (pendingStudentSignup?.emailVerified) {
-                emailResendButton.disabled = true;
-                document.getElementById('emailOtpCooldown').textContent = 'Verified';
-            } else if (!otpCooldownTimers['signup-email']) {
-                emailResendButton.disabled = false;
             }
         }
 
@@ -927,6 +918,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
                 currentUser = await loadStudentProfile(userData.user.id);
                 adminUser = null;
+                pendingStudentSignup = null;
+                persistPendingStudentSignup();
                 startStudentOrderPolling();
                 renderUserProfile();
                 renderAdminAccess();
@@ -947,6 +940,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         async function finishStudentSignIn(userId) {
             currentUser = await loadStudentProfile(userId);
             adminUser = null;
+            pendingStudentSignup = null;
+            persistPendingStudentSignup();
             startStudentOrderPolling();
             renderUserProfile();
             renderAdminAccess();
@@ -1004,19 +999,18 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 }
 
                 if (data.user.email_confirmed_at) {
-                    if (data.session) await supabaseClient.auth.signOut();
-                    throw new Error('Supabase auto-confirmed this account without sending an OTP. Enable Confirm Email in Supabase Auth to use email verification.');
+                    if (!data.session) throw new Error('Your email is confirmed. Sign in to continue.');
+                    await finishStudentSignIn(data.user.id);
+                    showToast('Student account created.');
+                    return;
                 }
                 if (data.session) await supabaseClient.auth.signOut();
 
-                pendingStudentSignup = {
-                    email,
-                    emailVerified: false
-                };
+                pendingStudentSignup = { email };
                 persistPendingStudentSignup();
                 showStudentAuthPane('verify');
                 startOtpCooldown('signup');
-                showToast('An email verification code was sent.');
+                showToast('A confirmation link was sent to your email.');
             } catch (error) {
                 showToast(error.message || 'Could not create the student account.');
             } finally {
@@ -1024,46 +1018,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }
         }
 
-        async function verifyStudentSignup(event) {
-            event.preventDefault();
-            if (!supabaseClient || !pendingStudentSignup) return;
-
-            try {
-                if (!pendingStudentSignup.emailVerified) {
-                    const emailResult = await supabaseClient.auth.verifyOtp({
-                        email: pendingStudentSignup.email,
-                        token: document.getElementById('signupEmailOtp').value.trim(),
-                        type: 'signup'
-                    });
-                    if (emailResult.error) throw emailResult.error;
-                    pendingStudentSignup.emailVerified = true;
-                    persistPendingStudentSignup();
-                    updateStudentOtpRequirements();
-                }
-
-                const { data: userData, error: userError } = await supabaseClient.auth.getUser();
-                if (userError) throw userError;
-                const user = userData.user;
-                if (!user) throw new Error('Verification succeeded, but the student session was not returned. Sign in to continue.');
-                await finishStudentSignIn(user.id);
-                pendingStudentSignup = null;
-                persistPendingStudentSignup();
-                showToast('Student account verified.');
-            } catch (error) {
-                console.error('Student email verification or profile setup failed:', error);
-                if (pendingStudentSignup?.emailVerified) {
-                    showToast('Email verified, but the student profile could not be loaded. Run the latest setup.sql in Supabase and retry.');
-                } else {
-                    showToast(error.message || 'The verification code was not accepted.');
-                }
-            }
-        }
-
         function startOtpCooldown(kind) {
             const key = `${kind}-email`;
             if (otpCooldownTimers[key]) clearInterval(otpCooldownTimers[key]);
-            const buttonId = kind === 'recovery' ? 'resendRecoveryOtp' : 'resendEmailOtp';
-            const cooldownId = kind === 'recovery' ? 'recoveryOtpCooldown' : 'emailOtpCooldown';
+            const buttonId = kind === 'recovery' ? 'resendRecoveryOtp' : 'resendConfirmationEmail';
+            const cooldownId = kind === 'recovery' ? 'recoveryOtpCooldown' : 'confirmationEmailCooldown';
             const button = document.getElementById(buttonId);
             const label = document.getElementById(cooldownId);
             let seconds = 60;
@@ -1082,19 +1041,18 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }, 1000);
         }
 
-        async function resendStudentOtp() {
+        async function resendStudentConfirmation() {
             if (!supabaseClient || !pendingStudentSignup) return;
-            if (pendingStudentSignup.emailVerified) return;
             const { error } = await supabaseClient.auth.resend({
                 type: 'signup',
                 email: pendingStudentSignup.email
             });
             if (error) {
-                showToast(error.message || 'Could not resend the verification code.');
+                showToast(error.message || 'Could not resend the confirmation email.');
                 return;
             }
             startOtpCooldown('signup');
-            showToast('A new email code was sent.');
+            showToast('A new confirmation link was sent.');
         }
 
         async function requestStudentRecovery(event) {

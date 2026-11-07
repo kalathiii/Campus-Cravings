@@ -1,2 +1,6 @@
 [functions.student-login]
 verify_jwt = false
+
+[auth.email.template.confirmation]
+subject = "Confirm your Campus Cravings account"
+content_path = "./supabase/templates/confirmation.html"

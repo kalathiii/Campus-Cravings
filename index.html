@@ -408,22 +408,17 @@
                         <label for="signupPasswordConfirm" class="block text-xs font-bold uppercase tracking-wider mb-1">Confirm password</label>
                         <input id="signupPasswordConfirm" type="password" required minlength="8" autocomplete="new-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
                     </div>
-                    <button type="submit" class="sm:col-span-2 w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl">Create Account & Verify</button>
+                    <button type="submit" class="sm:col-span-2 w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl">Create Account</button>
                 </form>
                 <button type="button" onclick="showStudentAuthPane('login')" class="mt-4 text-sm font-bold text-slate-600">Back to login</button>
             </div>
 
             <div id="studentVerifyPane" class="hidden p-6 space-y-4 text-black">
-                <p class="text-sm text-slate-600">Enter the six-digit verification code sent to your email.</p>
-                <form onsubmit="verifyStudentSignup(event)" class="space-y-4">
-                    <div>
-                        <label for="signupEmailOtp" class="block text-xs font-bold uppercase tracking-wider mb-1">Email code</label>
-                        <input id="signupEmailOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-lg tracking-[0.3em]">
-                        <button id="resendEmailOtp" type="button" onclick="resendStudentOtp('email')" class="mt-2 text-sm font-bold text-orange-700">Resend email code</button>
-                        <span id="emailOtpCooldown" class="ml-2 text-xs text-slate-500"></span>
-                    </div>
-                    <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl">Verify & Continue</button>
-                </form>
+                <p class="text-sm text-slate-600">Open the confirmation link sent to <strong id="pendingSignupEmail"></strong>. This browser will sign you in automatically after confirmation.</p>
+                <div>
+                    <button id="resendConfirmationEmail" type="button" onclick="resendStudentConfirmation()" class="text-sm font-bold text-orange-700">Resend confirmation email</button>
+                    <span id="confirmationEmailCooldown" class="ml-2 text-xs text-slate-500"></span>
+                </div>
             </div>
 
             <div id="studentRecoveryPane" class="hidden p-6 space-y-4 text-black">
