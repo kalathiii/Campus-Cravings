@@ -187,8 +187,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         ];
 
         const MENU_STORAGE_KEY = 'campusCravingsMenu';
+        const STUDENT_ORDER_TRACKING_KEY = 'campusCravingsTrackedOrders';
         let menuRealtimeChannel = null;
         let orderRealtimeChannel = null;
+        let orderTrackingPollTimer = null;
+        let isLoadingStudentOrders = false;
 
         function loadMenuItems() {
             try {
@@ -301,6 +304,75 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 claimedByName: row.claimed_by_name,
                 claimedAt: row.claimed_at
             };
+        }
+
+        function getStudentTrackingStorageKey() {
+            return `${STUDENT_ORDER_TRACKING_KEY}:${currentUser.registerId}`;
+        }
+
+        function getStudentTrackingOrders() {
+            if (!currentUser) return [];
+            try {
+                const savedOrders = JSON.parse(localStorage.getItem(getStudentTrackingStorageKey()) || '[]');
+                return Array.isArray(savedOrders) ? savedOrders : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function saveStudentTrackingOrder(orderId, trackingKey) {
+            const trackedOrders = getStudentTrackingOrders();
+            trackedOrders.push({ id: orderId, trackingKey });
+            localStorage.setItem(getStudentTrackingStorageKey(), JSON.stringify(trackedOrders));
+        }
+
+        async function loadStudentOrders() {
+            if (!supabaseClient || !currentUser || adminUser || isLoadingStudentOrders) return;
+
+            const registerId = currentUser.registerId;
+            const trackedOrders = getStudentTrackingOrders();
+            isLoadingStudentOrders = true;
+            try {
+                const results = await Promise.all(trackedOrders.map(trackedOrder =>
+                    supabaseClient.rpc('get_canteen_order_status', {
+                        p_order_id: trackedOrder.id,
+                        p_tracking_key: trackedOrder.trackingKey
+                    })
+                ));
+
+                const failedResult = results.find(result => result.error);
+                if (failedResult) {
+                    console.warn('Student order status refresh failed:', failedResult.error);
+                    return;
+                }
+
+                if (!currentUser || currentUser.registerId !== registerId || adminUser) return;
+
+                const orders = results
+                    .filter(result => result.data)
+                    .map(result => mapSharedOrder(result.data));
+                activeOrders = orders.filter(order => order.statusIndex < 4);
+                orderHistory = orders.filter(order => order.statusIndex === 4);
+                renderActiveOrders();
+                renderOrderHistory();
+            } catch (error) {
+                console.warn('Student order status refresh failed:', error);
+            } finally {
+                isLoadingStudentOrders = false;
+            }
+        }
+
+        function startStudentOrderPolling() {
+            stopStudentOrderPolling();
+            if (!supabaseClient || !currentUser || adminUser) return;
+            loadStudentOrders();
+            orderTrackingPollTimer = setInterval(loadStudentOrders, 4000);
+        }
+
+        function stopStudentOrderPolling() {
+            if (!orderTrackingPollTimer) return;
+            clearInterval(orderTrackingPollTimer);
+            orderTrackingPollTimer = null;
         }
 
         async function loadSharedOrders() {
@@ -537,6 +609,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             renderOrderHistory();
             startMenuRealtimeSync();
             startOrderRealtimeSync();
+            startStudentOrderPolling();
             if (adminUser && adminPasswordChangeRequired) {
                 openAdminPasswordModal(true);
             }
@@ -697,6 +770,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             currentUser.dept = dept || currentUser.dept;
 
             saveSessionState();
+            startStudentOrderPolling();
             renderUserProfile();
             closeProfileModal();
             showToast('Profile updated successfully.');
@@ -721,6 +795,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             };
 
             saveSessionState();
+            startStudentOrderPolling();
             renderUserProfile();
             renderAdminAccess();
             renderStudentAppView();
@@ -751,6 +826,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }
 
             currentUser = null;
+            stopStudentOrderPolling();
             adminUser = { name: username, username, id: data.user.id };
             adminPasswordChangeRequired = data.user.user_metadata?.password_changed !== true;
             await loadSharedOrders();
@@ -823,6 +899,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         }
 
         function logoutUser() {
+            stopStudentOrderPolling();
             currentUser = null;
             clearSessionState();
             renderUserProfile();
@@ -833,6 +910,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
         async function logoutAdmin() {
             stopOrderRealtimeSync();
+            stopStudentOrderPolling();
             if (supabaseClient) await supabaseClient.auth.signOut();
             adminUser = null;
             adminPasswordChangeRequired = false;
@@ -1067,6 +1145,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 registerId: currentUser.registerId,
                 dept: currentUser.dept
             };
+            const trackingKey = crypto.randomUUID();
             const orderItems = cart.map(item => ({
                 id: item.id,
                 name: item.name,
@@ -1076,6 +1155,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const { data: orderId, error } = await supabaseClient.rpc('place_canteen_order', {
                 p_order_data: {
                     token: tokenNum,
+                    tracking_key: trackingKey,
                     student: orderStudent,
                     items: orderItems,
                     total_amount: total,
@@ -1090,6 +1170,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 showToast('Could not place your order. Please try again.');
                 return;
             }
+
+            saveStudentTrackingOrder(orderId, trackingKey);
 
             const newOrder = {
                 id: orderId,
@@ -1235,10 +1317,10 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
                         <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
                             <div class="text-xs font-semibold text-slate-500">
-                                ${adminUser ? 'Admin controls active' : 'Login as admin to manage this order'}
+                                ${adminUser ? 'Admin controls active' : 'Your order status updates automatically'}
                             </div>
                             <div class="flex justify-end gap-3">
-                                ${order.statusIndex === 0 ? `
+                                ${adminUser ? (order.statusIndex === 0 ? `
                                     <button onclick="updateOrderStatus('${order.id}', 1)" class="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
                                         Accept Order
                                     </button>
@@ -1258,7 +1340,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                                     <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
                                         <i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Order Completed
                                     </span>
-                                `}
+                                `) : ''}
                             </div>
                         </div>
                     </div>

@@ -113,6 +113,7 @@ $$;
 
 create table if not exists public.canteen_orders (
     id uuid primary key default gen_random_uuid(),
+    tracking_key text not null default gen_random_uuid()::text,
     token text not null,
     student jsonb not null check (jsonb_typeof(student) = 'object'),
     items jsonb not null check (jsonb_typeof(items) = 'array'),
@@ -127,6 +128,13 @@ create table if not exists public.canteen_orders (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+alter table public.canteen_orders add column if not exists tracking_key text;
+alter table public.canteen_orders alter column tracking_key drop default;
+alter table public.canteen_orders alter column tracking_key type text using tracking_key::text;
+update public.canteen_orders set tracking_key = gen_random_uuid()::text where tracking_key is null;
+alter table public.canteen_orders alter column tracking_key set default gen_random_uuid()::text;
+alter table public.canteen_orders alter column tracking_key set not null;
 
 create index if not exists canteen_orders_active_created_idx
     on public.canteen_orders (status_index, created_at desc);
@@ -188,6 +196,7 @@ begin
        or coalesce(p_order_data #>> '{student,name}', '') = ''
        or coalesce(p_order_data #>> '{student,registerId}', '') = ''
        or coalesce(p_order_data ->> 'token', '') = ''
+         or coalesce(p_order_data ->> 'tracking_key', '') = ''
        or coalesce(p_order_data ->> 'pickup_slot', '') = ''
        or coalesce(p_order_data ->> 'payment_mode', '') = ''
        or coalesce(p_order_data ->> 'placed_label', '') = '' then
@@ -196,6 +205,7 @@ begin
 
     insert into public.canteen_orders (
         token,
+        tracking_key,
         student,
         items,
         total_amount,
@@ -204,6 +214,7 @@ begin
         placed_label
     ) values (
         p_order_data ->> 'token',
+        p_order_data ->> 'tracking_key',
         p_order_data -> 'student',
         p_order_data -> 'items',
         (p_order_data ->> 'total_amount')::numeric,
@@ -215,6 +226,23 @@ begin
 
     return created_order_id;
 end;
+$$;
+
+drop function if exists public.get_canteen_order_status(uuid, uuid);
+
+create or replace function public.get_canteen_order_status(
+    p_order_id uuid,
+    p_tracking_key text
+)
+returns jsonb
+language sql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+    select to_jsonb(order_row) - 'tracking_key'
+    from public.canteen_orders as order_row
+    where order_row.id = p_order_id
+      and order_row.tracking_key = p_tracking_key;
 $$;
 
 create or replace function public.claim_canteen_order(p_order_id uuid)
@@ -281,6 +309,8 @@ $$;
 
 revoke all on function public.place_canteen_order(jsonb) from public;
 grant execute on function public.place_canteen_order(jsonb) to anon, authenticated;
+revoke all on function public.get_canteen_order_status(uuid, text) from public;
+grant execute on function public.get_canteen_order_status(uuid, text) to anon, authenticated;
 revoke all on function public.claim_canteen_order(uuid) from public, anon;
 grant execute on function public.claim_canteen_order(uuid) to authenticated;
 revoke all on function public.advance_canteen_order(uuid, smallint) from public, anon;
