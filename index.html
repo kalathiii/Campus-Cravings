@@ -315,7 +315,7 @@
 
     <!-- STUDENT LOGIN / REGISTER MODAL -->
     <div id="loginModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden transition-all transform">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto transition-all transform">
             <div class="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white text-center relative">
                 <button onclick="closeLoginModal()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
                     <i class="fa-solid fa-xmark text-lg"></i>
@@ -323,72 +323,130 @@
                 <div class="bg-orange-500/20 text-orange-400 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-orange-500/30">
                     <i class="fa-solid fa-id-card text-2xl"></i>
                 </div>
-                <h3 class="text-xl font-bold text-white">Sona Student Portal Login</h3>
-                <p class="text-xs text-slate-300 mt-1">Access pre-ordering using your Sona Register ID</p>
+                <h3 id="studentAuthTitle" class="text-xl font-bold text-white">Student Login</h3>
+                <p class="text-xs text-slate-300 mt-1">Campus Cravings student account</p>
             </div>
 
-            <form onsubmit="handleLogin(event)" class="p-6 space-y-4 text-black">
-                <div>
-                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Student Sona Register ID / Username</label>
-                    <div class="relative">
-                        <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
-                        <input type="text" id="loginRegisterId" required placeholder="e.g. SONA202601" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold uppercase text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+            <div id="studentLoginPane" class="p-6 space-y-4 text-black">
+                <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label for="loginIdentifier" class="block text-xs font-bold uppercase tracking-wider mb-1">Email or register number</label>
+                        <input id="loginIdentifier" type="text" required autocomplete="username" placeholder="Email or register number" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Student Name</label>
-                    <div class="relative">
-                        <i class="fa-solid fa-signature absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
-                        <input type="text" id="loginStudentName" required placeholder="e.g. Rahul Sharma" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <div>
+                        <label for="loginPassword" class="block text-xs font-bold uppercase tracking-wider mb-1">Password</label>
+                        <input id="loginPassword" type="password" required autocomplete="current-password" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
                     </div>
+                    <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl">Log In</button>
+                </form>
+                <div class="flex flex-wrap justify-between gap-3 text-sm">
+                    <button type="button" onclick="showStudentAuthPane('signup')" class="font-bold text-orange-700">Create student account</button>
+                    <button type="button" onclick="showStudentAuthPane('recovery')" class="font-bold text-slate-600">Forgot password?</button>
                 </div>
+            </div>
 
-                <div>
-                    <label class="block text-xs font-bold text-black uppercase tracking-wider mb-1">Department / Year</label>
-                    <select id="loginDept" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="B.E. Computer Science and Engineering - 1st Year">B.E. Computer Science and Engineering - 1st Year</option>
-                        <option value="B.E. Computer Science and Engineering - 2nd Year">B.E. Computer Science and Engineering - 2nd Year</option>
-                        <option value="B.E. Computer Science and Engineering - 3rd Year">B.E. Computer Science and Engineering - 3rd Year</option>
-                        <option value="B.E. Computer Science and Engineering - 4th Year">B.E. Computer Science and Engineering - 4th Year</option>
-                        <option value="B.E. Electronics and Communication Engineering - 1st Year">B.E. Electronics and Communication Engineering - 1st Year</option>
-                        <option value="B.E. Electronics and Communication Engineering - 2nd Year">B.E. Electronics and Communication Engineering - 2nd Year</option>
-                        <option value="B.E. Electronics and Communication Engineering - 3rd Year">B.E. Electronics and Communication Engineering - 3rd Year</option>
-                        <option value="B.E. Electronics and Communication Engineering - 4th Year">B.E. Electronics and Communication Engineering - 4th Year</option>
-                        <option value="B.E. Electrical and Electronics Engineering - 1st Year">B.E. Electrical and Electronics Engineering - 1st Year</option>
-                        <option value="B.E. Electrical and Electronics Engineering - 2nd Year">B.E. Electrical and Electronics Engineering - 2nd Year</option>
-                        <option value="B.E. Electrical and Electronics Engineering - 3rd Year">B.E. Electrical and Electronics Engineering - 3rd Year</option>
-                        <option value="B.E. Electrical and Electronics Engineering - 4th Year">B.E. Electrical and Electronics Engineering - 4th Year</option>
-                        <option value="B.E. Mechanical Engineering - 1st Year">B.E. Mechanical Engineering - 1st Year</option>
-                        <option value="B.E. Mechanical Engineering - 2nd Year">B.E. Mechanical Engineering - 2nd Year</option>
-                        <option value="B.E. Mechanical Engineering - 3rd Year">B.E. Mechanical Engineering - 3rd Year</option>
-                        <option value="B.E. Mechanical Engineering - 4th Year">B.E. Mechanical Engineering - 4th Year</option>
-                        <option value="B.E. Civil Engineering - 1st Year">B.E. Civil Engineering - 1st Year</option>
-                        <option value="B.E. Civil Engineering - 2nd Year">B.E. Civil Engineering - 2nd Year</option>
-                        <option value="B.E. Civil Engineering - 3rd Year">B.E. Civil Engineering - 3rd Year</option>
-                        <option value="B.E. Civil Engineering - 4th Year">B.E. Civil Engineering - 4th Year</option>
-                        <option value="B.Tech Information Technology - 1st Year">B.Tech Information Technology - 1st Year</option>
-                        <option value="B.Tech Information Technology - 2nd Year">B.Tech Information Technology - 2nd Year</option>
-                        <option value="B.Tech Information Technology - 3rd Year">B.Tech Information Technology - 3rd Year</option>
-                        <option value="B.Tech Information Technology - 4th Year">B.Tech Information Technology - 4th Year</option>
-                        <option value="B.Tech Artificial Intelligence and Data Science - 1st Year">B.Tech Artificial Intelligence and Data Science - 1st Year</option>
-                        <option value="B.Tech Artificial Intelligence and Data Science - 2nd Year">B.Tech Artificial Intelligence and Data Science - 2nd Year</option>
-                        <option value="B.Tech Artificial Intelligence and Data Science - 3rd Year">B.Tech Artificial Intelligence and Data Science - 3rd Year</option>
-                        <option value="B.Tech Artificial Intelligence and Data Science - 4th Year">B.Tech Artificial Intelligence and Data Science - 4th Year</option>
-                        <option value="B.Sc Computer Science - 1st Year">B.Sc Computer Science - 1st Year</option>
-                        <option value="B.Sc Computer Science - 2nd Year">B.Sc Computer Science - 2nd Year</option>
-                        <option value="B.Sc Computer Science - 3rd Year">B.Sc Computer Science - 3rd Year</option>
-                        <option value="MBA - 1st Year">MBA - 1st Year</option>
-                        <option value="MBA - 2nd Year">MBA - 2nd Year</option>
-                        <option value="M.E. / M.Tech - 1st Year">M.E. / M.Tech - 1st Year</option>
-                        <option value="M.E. / M.Tech - 2nd Year">M.E. / M.Tech - 2nd Year</option>
-                    </select>
-                </div>
+            <div id="studentSignupPane" class="hidden p-6 text-black">
+                <form onsubmit="handleStudentSignup(event)" class="grid sm:grid-cols-2 gap-3">
+                    <div class="sm:col-span-2">
+                        <label for="signupName" class="block text-xs font-bold uppercase tracking-wider mb-1">Full name</label>
+                        <input id="signupName" required maxlength="100" autocomplete="name" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label for="signupRegisterNo" class="block text-xs font-bold uppercase tracking-wider mb-1">Register number</label>
+                        <input id="signupRegisterNo" required maxlength="30" autocomplete="off" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm uppercase">
+                    </div>
+                    <div>
+                        <label for="signupGender" class="block text-xs font-bold uppercase tracking-wider mb-1">Gender</label>
+                        <select id="signupGender" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                            <option value="">Select</option>
+                            <option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="signupDob" class="block text-xs font-bold uppercase tracking-wider mb-1">Date of birth</label>
+                        <input id="signupDob" type="date" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label for="signupAge" class="block text-xs font-bold uppercase tracking-wider mb-1">Age</label>
+                        <input id="signupAge" readonly aria-live="polite" placeholder="Calculated from DOB" class="w-full px-4 py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label for="signupPhone" class="block text-xs font-bold uppercase tracking-wider mb-1">Mobile number</label>
+                        <input id="signupPhone" type="tel" required autocomplete="tel" placeholder="Mobile number" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label for="signupEmail" class="block text-xs font-bold uppercase tracking-wider mb-1">Email</label>
+                        <input id="signupEmail" type="email" required autocomplete="email" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="signupDepartment" class="block text-xs font-bold uppercase tracking-wider mb-1">Department</label>
+                        <select id="signupDepartment" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                            <option value="">Select department</option>
+                            <option>B.E. Computer Science and Engineering</option>
+                            <option>B.E. Electronics and Communication Engineering</option>
+                            <option>B.E. Electrical and Electronics Engineering</option>
+                            <option>B.E. Mechanical Engineering</option>
+                            <option>B.E. Civil Engineering</option>
+                            <option>B.Tech Information Technology</option>
+                            <option>B.Tech Artificial Intelligence and Data Science</option>
+                            <option>B.Sc Computer Science</option>
+                            <option>MBA</option>
+                            <option>M.E. / M.Tech</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="signupYear" class="block text-xs font-bold uppercase tracking-wider mb-1">Year</label>
+                        <select id="signupYear" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                            <option value="">Select year</option><option value="1">1st Year</option><option value="2">2nd Year</option><option value="3">3rd Year</option><option value="4">4th Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="signupPassword" class="block text-xs font-bold uppercase tracking-wider mb-1">Create password</label>
+                        <input id="signupPassword" type="password" required minlength="8" autocomplete="new-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="signupPasswordConfirm" class="block text-xs font-bold uppercase tracking-wider mb-1">Confirm password</label>
+                        <input id="signupPasswordConfirm" type="password" required minlength="8" autocomplete="new-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <button type="submit" class="sm:col-span-2 w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl">Create Account & Verify</button>
+                </form>
+                <button type="button" onclick="showStudentAuthPane('login')" class="mt-4 text-sm font-bold text-slate-600">Back to login</button>
+            </div>
 
-                <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl shadow-md transition duration-200 mt-2">
-                    Log In to Campus Cravings
-                </button>
-            </form>
+            <div id="studentVerifyPane" class="hidden p-6 space-y-4 text-black">
+                <p class="text-sm text-slate-600">Enter the six-digit verification code sent to your email.</p>
+                <form onsubmit="verifyStudentSignup(event)" class="space-y-4">
+                    <div>
+                        <label for="signupEmailOtp" class="block text-xs font-bold uppercase tracking-wider mb-1">Email code</label>
+                        <input id="signupEmailOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-lg tracking-[0.3em]">
+                        <button id="resendEmailOtp" type="button" onclick="resendStudentOtp('email')" class="mt-2 text-sm font-bold text-orange-700">Resend email code</button>
+                        <span id="emailOtpCooldown" class="ml-2 text-xs text-slate-500"></span>
+                    </div>
+                    <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl">Verify & Continue</button>
+                </form>
+            </div>
+
+            <div id="studentRecoveryPane" class="hidden p-6 space-y-4 text-black">
+                <form id="recoveryRequestForm" onsubmit="requestStudentRecovery(event)" class="space-y-4">
+                    <label for="recoveryIdentifier" class="block text-xs font-bold uppercase tracking-wider">Account email</label>
+                    <input id="recoveryIdentifier" type="email" required autocomplete="email" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm" placeholder="student@example.com">
+                    <button type="submit" class="w-full bg-orange-600 text-white font-bold py-3 rounded-xl">Send recovery code</button>
+                </form>
+                <form id="recoveryVerifyForm" onsubmit="completeStudentRecovery(event)" class="hidden space-y-4">
+                    <div>
+                        <label for="recoveryOtp" class="block text-xs font-bold uppercase tracking-wider mb-1">Verification code</label>
+                        <input id="recoveryOtp" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-lg tracking-[0.3em]">
+                        <button id="resendRecoveryOtp" type="button" onclick="resendRecoveryCode()" class="mt-2 text-sm font-bold text-orange-700">Resend recovery code</button>
+                        <span id="recoveryOtpCooldown" class="ml-2 text-xs text-slate-500"></span>
+                    </div>
+                    <div>
+                        <label for="recoveryNewPassword" class="block text-xs font-bold uppercase tracking-wider mb-1">New password</label>
+                        <input id="recoveryNewPassword" type="password" minlength="8" autocomplete="new-password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm">
+                    </div>
+                    <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl">Verify & Reset Password</button>
+                </form>
+                <button type="button" onclick="showStudentAuthPane('login')" class="text-sm font-bold text-slate-600">Back to login</button>
+            </div>
         </div>
     </div>
 
@@ -544,6 +602,21 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="pickupPinModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="pickupPinTitle">
+        <form onsubmit="confirmOrderCollection(event)" class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 id="pickupPinTitle" class="text-lg font-bold text-slate-900">Verify Pickup PIN</h3>
+                <button type="button" onclick="closePickupPinModal()" class="p-2 text-slate-500 hover:text-slate-900" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-sm text-slate-600">Ask the student for the PIN shown in their order tracker.</p>
+            <input id="pickupPinInput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required class="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-orange-500" aria-label="Six-digit pickup PIN">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="closePickupPinModal()" class="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button>
+                <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">Confirm collection</button>
+            </div>
+        </form>
     </div>
 
     <!-- CUSTOM NOTIFICATION TOAST -->

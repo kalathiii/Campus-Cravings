@@ -192,6 +192,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         let orderRealtimeChannel = null;
         let orderTrackingPollTimer = null;
         let isLoadingStudentOrders = false;
+        let pendingPickupOrderId = null;
 
         function loadMenuItems() {
             try {
@@ -302,7 +303,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 statusIndex: Number(row.status_index),
                 claimedBy: row.claimed_by,
                 claimedByName: row.claimed_by_name,
-                claimedAt: row.claimed_at
+                claimedAt: row.claimed_at,
+                hasPickupPin: Boolean(row.has_pickup_pin)
             };
         }
 
@@ -320,10 +322,34 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }
         }
 
-        function saveStudentTrackingOrder(orderId, trackingKey) {
+        function saveStudentTrackingOrder(orderId, trackingKey, pickupPin) {
             const trackedOrders = getStudentTrackingOrders();
-            trackedOrders.push({ id: orderId, trackingKey });
+            trackedOrders.push({ id: orderId, trackingKey, pickupPin });
             localStorage.setItem(getStudentTrackingStorageKey(), JSON.stringify(trackedOrders));
+        }
+
+        function saveStudentPickupPin(orderId, pickupPin) {
+            const trackedOrders = getStudentTrackingOrders().filter(trackedOrder => trackedOrder.id !== orderId);
+            trackedOrders.push({ id: orderId, pickupPin });
+            localStorage.setItem(getStudentTrackingStorageKey(), JSON.stringify(trackedOrders));
+        }
+
+        function persistPendingStudentSignup() {
+            if (!pendingStudentSignup) {
+                sessionStorage.removeItem('campusCravingsPendingSignup');
+                return;
+            }
+            sessionStorage.setItem('campusCravingsPendingSignup', JSON.stringify(pendingStudentSignup));
+        }
+
+        function restorePendingStudentSignup() {
+            try {
+                const rawSignup = sessionStorage.getItem('campusCravingsPendingSignup');
+                pendingStudentSignup = rawSignup ? JSON.parse(rawSignup) : null;
+            } catch (error) {
+                pendingStudentSignup = null;
+                sessionStorage.removeItem('campusCravingsPendingSignup');
+            }
         }
 
         async function loadStudentOrders() {
@@ -333,24 +359,19 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const trackedOrders = getStudentTrackingOrders();
             isLoadingStudentOrders = true;
             try {
-                const results = await Promise.all(trackedOrders.map(trackedOrder =>
-                    supabaseClient.rpc('get_canteen_order_status', {
-                        p_order_id: trackedOrder.id,
-                        p_tracking_key: trackedOrder.trackingKey
-                    })
-                ));
-
-                const failedResult = results.find(result => result.error);
-                if (failedResult) {
-                    console.warn('Student order status refresh failed:', failedResult.error);
+                const { data, error } = await supabaseClient.rpc('get_student_canteen_orders');
+                if (error) {
+                    console.warn('Student order status refresh failed:', error);
                     return;
                 }
 
                 if (!currentUser || currentUser.registerId !== registerId || adminUser) return;
 
-                const orders = results
-                    .filter(result => result.data)
-                    .map(result => mapSharedOrder(result.data));
+                const pickupPins = new Map(trackedOrders.map(trackedOrder => [trackedOrder.id, trackedOrder.pickupPin]));
+                const orders = (Array.isArray(data) ? data : []).map(row => ({
+                    ...mapSharedOrder(row),
+                    pickupPin: pickupPins.get(row.id) || null
+                }));
                 activeOrders = orders.filter(order => order.statusIndex < 4);
                 orderHistory = orders.filter(order => order.statusIndex === 4);
                 renderActiveOrders();
@@ -380,7 +401,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
             const { data, error } = await supabaseClient
                 .from('canteen_orders')
-                .select('*')
+                .select('id, token, student, items, total_amount, pickup_slot, payment_mode, placed_label, status_index, claimed_by, claimed_by_name, claimed_at, created_at, updated_at')
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -482,6 +503,9 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
         let currentUser = null;
         let adminUser = null;
         let adminPasswordChangeRequired = false;
+        let pendingStudentSignup = null;
+        let recoveryVerification = null;
+        const otpCooldownTimers = {};
 
         let cart = [];
         let activeOrders = [];
@@ -544,36 +568,43 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : '';
         }
 
-        function saveSessionState() {
-            const session = {
-                currentUser
-            };
-            const sessionText = JSON.stringify(session);
-            localStorage.setItem('campusCravingsSession', sessionText);
-            setCookie('campusCravingsSession', sessionText, 30);
-        }
-
         function clearSessionState() {
             localStorage.removeItem('campusCravingsSession');
             document.cookie = 'campusCravingsSession=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         }
 
-        function loadPersistedSession() {
-            const rawSession = localStorage.getItem('campusCravingsSession') || getCookie('campusCravingsSession');
-            if (!rawSession) return;
+        function mapStudentProfile(profile) {
+            const photo = profile.avatar_path
+                ? supabaseClient.storage.from('student-avatars').getPublicUrl(profile.avatar_path).data.publicUrl
+                : '';
+            return {
+                id: profile.id,
+                name: profile.full_name,
+                registerId: profile.register_no,
+                gender: profile.gender,
+                dateOfBirth: profile.date_of_birth,
+                age: calculateAge(profile.date_of_birth),
+                phone: profile.phone,
+                email: profile.email,
+                dept: profile.department,
+                year: Number(profile.year),
+                photo,
+                avatarPath: profile.avatar_path
+            };
+        }
 
-            try {
-                const session = JSON.parse(rawSession);
-                currentUser = session.currentUser || null;
-                adminUser = null;
-            } catch (error) {
-                currentUser = null;
-                adminUser = null;
-                clearSessionState();
-            }
+        async function loadStudentProfile(userId) {
+            const { data, error } = await supabaseClient
+                .from('student_profiles')
+                .select('id, register_no, full_name, gender, date_of_birth, phone, email, department, year, avatar_path')
+                .eq('id', userId)
+                .single();
+            if (error) throw error;
+            return mapStudentProfile(data);
         }
 
         async function restoreAdminSession() {
+            restorePendingStudentSignup();
             if (!supabaseClient) return;
 
             const { data, error } = await supabaseClient.auth.getSession();
@@ -582,18 +613,41 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             const username = Object.keys(ADMIN_EMAILS).find(
                 adminName => ADMIN_EMAILS[adminName] === data.session.user.email
             );
-            if (!username) {
-                await supabaseClient.auth.signOut();
+
+            if (username) {
+                currentUser = null;
+                adminUser = { name: username, username, id: data.session.user.id };
+                adminPasswordChangeRequired = data.session.user.user_metadata?.password_changed !== true;
                 return;
             }
 
-            adminUser = { name: username, username, id: data.session.user.id };
-            adminPasswordChangeRequired = data.session.user.user_metadata?.password_changed !== true;
+            try {
+                currentUser = await loadStudentProfile(data.session.user.id);
+                adminUser = null;
+            } catch (error) {
+                const userMetadata = data.session.user.user_metadata || {};
+                if (userMetadata.account_type === 'student' && pendingStudentSignup) {
+                    pendingStudentSignup.emailVerified = Boolean(data.session.user.email_confirmed_at);
+                    persistPendingStudentSignup();
+                    return;
+                }
+                console.error('Student profile restore failed:', error);
+                await supabaseClient.auth.signOut();
+            }
         }
 
         // INITIALIZATION
         window.addEventListener('DOMContentLoaded', async () => {
-            loadPersistedSession();
+            const dateOfBirthInput = document.getElementById('signupDob');
+            const today = new Date();
+            dateOfBirthInput.max = [
+                today.getFullYear(),
+                String(today.getMonth() + 1).padStart(2, '0'),
+                String(today.getDate()).padStart(2, '0')
+            ].join('-');
+            dateOfBirthInput.addEventListener('input', () => {
+                document.getElementById('signupAge').value = calculateAge(dateOfBirthInput.value);
+            });
             await restoreAdminSession();
             await loadMenuFromRemote();
             await loadSharedOrders();
@@ -607,6 +661,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             renderAdminOrders();
             renderMenuEditor();
             renderOrderHistory();
+            if (pendingStudentSignup && !currentUser && !adminUser) {
+                openLoginModal();
+                showStudentAuthPane('verify');
+                closeAuthChoiceModal();
+            }
             startMenuRealtimeSync();
             startOrderRealtimeSync();
             startStudentOrderPolling();
@@ -624,11 +683,11 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 container.innerHTML = `
                     <div class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 p-1.5 pr-3 rounded-xl cursor-pointer transition" onclick="openProfileModal()">
                         <div class="w-8 h-8 rounded-lg overflow-hidden bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center text-slate-950 font-bold text-xs shadow-md shadow-orange-500/20">
-                            ${avatarUrl ? `<img src="${avatarUrl}" alt="Profile" class="w-full h-full object-cover" />` : avatarText}
+                            ${avatarUrl ? `<img src="${escapeHtml(avatarUrl)}" alt="Profile" class="w-full h-full object-cover" />` : escapeHtml(avatarText)}
                         </div>
                         <div class="text-left hidden md:block">
-                            <p class="text-xs font-bold text-white leading-tight">${currentUser.name}</p>
-                            <p class="text-[10px] font-semibold text-orange-300 tracking-wider uppercase">${currentUser.registerId}</p>
+                            <p class="text-xs font-bold text-white leading-tight">${escapeHtml(currentUser.name)}</p>
+                            <p class="text-[10px] font-semibold text-orange-300 tracking-wider uppercase">${escapeHtml(currentUser.registerId)}</p>
                         </div>
                         <i class="fa-solid fa-chevron-down text-xs text-slate-400 ml-1 hidden md:inline"></i>
                     </div>
@@ -694,15 +753,56 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             if (modal) modal.classList.add('hidden');
         }
 
+        function calculateAge(dateOfBirth) {
+            if (!dateOfBirth) return '';
+            const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+            if (Number.isNaN(birthDate.getTime())) return '';
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const birthdayPending = today.getMonth() < birthDate.getMonth()
+                || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate());
+            if (birthdayPending) age -= 1;
+            return age >= 0 ? age : '';
+        }
+
+        function showStudentAuthPane(paneName) {
+            const panes = {
+                login: 'studentLoginPane',
+                signup: 'studentSignupPane',
+                verify: 'studentVerifyPane',
+                recovery: 'studentRecoveryPane'
+            };
+            Object.entries(panes).forEach(([name, id]) => {
+                document.getElementById(id).classList.toggle('hidden', name !== paneName);
+            });
+            document.getElementById('studentAuthTitle').textContent = {
+                login: 'Student Login',
+                signup: 'Create Student Account',
+                verify: 'Verify Contact Details',
+                recovery: 'Reset Password'
+            }[paneName] || 'Student Login';
+            if (paneName === 'recovery') {
+                document.getElementById('recoveryRequestForm').classList.remove('hidden');
+                document.getElementById('recoveryVerifyForm').classList.add('hidden');
+                recoveryVerification = null;
+            }
+            if (paneName === 'verify') updateStudentOtpRequirements();
+        }
+
+        function updateStudentOtpRequirements() {
+            document.getElementById('signupEmailOtp').required = !pendingStudentSignup?.emailVerified;
+            const emailResendButton = document.getElementById('resendEmailOtp');
+            if (pendingStudentSignup?.emailVerified) {
+                emailResendButton.disabled = true;
+                document.getElementById('emailOtpCooldown').textContent = 'Verified';
+            } else if (!otpCooldownTimers['signup-email']) {
+                emailResendButton.disabled = false;
+            }
+        }
+
         function openLoginModal() {
             document.getElementById('loginModal').classList.remove('hidden');
-            document.getElementById('loginRegisterId').value = currentUser ? currentUser.registerId : '';
-            document.getElementById('loginStudentName').value = currentUser ? currentUser.name : '';
-            const deptSelect = document.getElementById('loginDept');
-            const deptExists = Array.from(deptSelect.options).some(option => option.value === (currentUser ? currentUser.dept : ''));
-            if (deptExists) {
-                deptSelect.value = currentUser.dept;
-            }
+            showStudentAuthPane('login');
         }
 
         function closeLoginModal() {
@@ -726,14 +826,14 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
             nameField.value = currentUser.name || '';
             regField.value = currentUser.registerId || '';
+            regField.readOnly = true;
             deptField.value = currentUser.dept || '';
 
             const avatarText = (currentUser.name || 'S').charAt(0).toUpperCase();
             if (currentUser.photo) {
-                avatarHolder.innerHTML = `<img src="${currentUser.photo}" alt="Profile" class="w-full h-full object-cover rounded-full" />`;
+                avatarHolder.innerHTML = `<img src="${escapeHtml(currentUser.photo)}" alt="Profile" class="w-full h-full object-cover rounded-full" />`;
             } else {
                 avatarHolder.textContent = avatarText;
-                avatarHolder.innerHTML = avatarText;
             }
 
             document.getElementById('profileModal').classList.remove('hidden');
@@ -743,34 +843,57 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             document.getElementById('profileModal').classList.add('hidden');
         }
 
-        function uploadProfileImage(event) {
+        async function uploadProfileImage(event) {
             const file = event.target.files && event.target.files[0];
-            if (!file || !currentUser) return;
+            if (!file || !currentUser || !supabaseClient) return;
+            if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+                showToast('Choose an image smaller than 5 MB.');
+                return;
+            }
 
-            const reader = new FileReader();
-            reader.onload = () => {
-                currentUser.photo = reader.result;
-                saveSessionState();
-                renderUserProfile();
-                openProfileModal();
-                showToast('Profile photo updated.');
-            };
-            reader.readAsDataURL(file);
+            const extension = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+            const avatarPath = `${currentUser.id}/${crypto.randomUUID()}.${extension}`;
+            const { error: uploadError } = await supabaseClient.storage
+                .from('student-avatars')
+                .upload(avatarPath, file, { contentType: file.type, upsert: false });
+            if (uploadError) {
+                showToast('Could not upload the profile photo.');
+                return;
+            }
+
+            const { error: profileError } = await supabaseClient
+                .from('student_profiles')
+                .update({ avatar_path: avatarPath })
+                .eq('id', currentUser.id);
+            if (profileError) {
+                await supabaseClient.storage.from('student-avatars').remove([avatarPath]);
+                showToast('Could not save the profile photo.');
+                return;
+            }
+
+            currentUser.avatarPath = avatarPath;
+            currentUser.photo = supabaseClient.storage.from('student-avatars').getPublicUrl(avatarPath).data.publicUrl;
+            renderUserProfile();
+            openProfileModal();
+            showToast('Profile photo updated.');
         }
 
-        function saveProfileChanges() {
-            if (!currentUser) return;
+        async function saveProfileChanges() {
+            if (!currentUser || !supabaseClient) return;
 
             const name = document.getElementById('profileName').value.trim();
-            const registerId = document.getElementById('profileRegisterId').value.trim().toUpperCase();
             const dept = document.getElementById('profileDept').value.trim();
+            const { error } = await supabaseClient
+                .from('student_profiles')
+                .update({ full_name: name || currentUser.name, department: dept || currentUser.dept })
+                .eq('id', currentUser.id);
+            if (error) {
+                showToast('Could not save your profile changes.');
+                return;
+            }
 
             currentUser.name = name || currentUser.name;
-            currentUser.registerId = registerId || currentUser.registerId;
             currentUser.dept = dept || currentUser.dept;
-
-            saveSessionState();
-            startStudentOrderPolling();
             renderUserProfile();
             closeProfileModal();
             showToast('Profile updated successfully.');
@@ -778,29 +901,256 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
         async function handleLogin(e) {
             e.preventDefault();
-            const regId = document.getElementById('loginRegisterId').value.trim().toUpperCase();
-            const name = document.getElementById('loginStudentName').value.trim();
-            const dept = document.getElementById('loginDept').value;
-
-            if (adminUser && supabaseClient) {
-                stopOrderRealtimeSync();
-                await supabaseClient.auth.signOut();
+            if (!supabaseClient) {
+                showToast('Student account service is not configured.');
+                return;
             }
-            adminUser = null;
-            currentUser = {
-                registerId: regId || "SONA202601",
-                name: name || "Student",
-                dept: dept,
-                photo: currentUser && currentUser.photo ? currentUser.photo : ''
-            };
 
-            saveSessionState();
+            const button = e.submitter;
+            if (button) button.disabled = true;
+            let studentSessionStarted = false;
+            try {
+                const { data, error } = await supabaseClient.functions.invoke('student-login', {
+                    body: {
+                        identifier: document.getElementById('loginIdentifier').value.trim(),
+                        password: document.getElementById('loginPassword').value
+                    }
+                });
+                if (error || !data?.session) throw new Error(data?.error || 'Account details or password are incorrect.');
+
+                stopOrderRealtimeSync();
+                const { error: sessionError } = await supabaseClient.auth.setSession(data.session);
+                if (sessionError) throw sessionError;
+                studentSessionStarted = true;
+                const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+                if (userError || !userData.user) throw userError || new Error('Student session could not be restored.');
+
+                currentUser = await loadStudentProfile(userData.user.id);
+                adminUser = null;
+                startStudentOrderPolling();
+                renderUserProfile();
+                renderAdminAccess();
+                renderStudentAppView();
+                closeLoginModal();
+                showToast(`Welcome, ${currentUser.name}.`);
+            } catch (error) {
+                if (studentSessionStarted) await supabaseClient.auth.signOut();
+                currentUser = null;
+                adminUser = null;
+                renderStudentAppView();
+                showToast(error.message || 'Student login failed.');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        }
+
+        async function finishStudentSignIn(userId) {
+            currentUser = await loadStudentProfile(userId);
+            adminUser = null;
             startStudentOrderPolling();
             renderUserProfile();
             renderAdminAccess();
             renderStudentAppView();
             closeLoginModal();
-            showToast(`Logged in successfully as ${currentUser.registerId}`);
+        }
+
+        async function handleStudentSignup(event) {
+            event.preventDefault();
+            if (!supabaseClient) {
+                showToast('Student account service is not configured.');
+                return;
+            }
+
+            const dateOfBirth = document.getElementById('signupDob').value;
+            const age = calculateAge(dateOfBirth);
+            const phone = document.getElementById('signupPhone').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const confirmPassword = document.getElementById('signupPasswordConfirm').value;
+            if (age === '') {
+                showToast('Enter a valid date of birth.');
+                return;
+            }
+            if (password !== confirmPassword) {
+                showToast('The passwords do not match.');
+                return;
+            }
+            const button = event.submitter;
+            if (button) button.disabled = true;
+            try {
+                const email = document.getElementById('signupEmail').value.trim().toLowerCase();
+                const signupData = {
+                    full_name: document.getElementById('signupName').value.trim(),
+                    register_no: document.getElementById('signupRegisterNo').value.trim().toUpperCase(),
+                    gender: document.getElementById('signupGender').value,
+                    date_of_birth: dateOfBirth,
+                    phone,
+                    department: document.getElementById('signupDepartment').value,
+                    year: Number(document.getElementById('signupYear').value)
+                };
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: { data: { account_type: 'student', ...signupData } }
+                });
+                if (error || !data.user) throw error || new Error('Could not create the student account.');
+
+                if (data.user.email_confirmed_at) {
+                    if (data.session) await supabaseClient.auth.signOut();
+                    throw new Error('Email confirmations are disabled. Enable them in Supabase before student signup.');
+                }
+                if (data.session) await supabaseClient.auth.signOut();
+
+                pendingStudentSignup = {
+                    email,
+                    emailVerified: false
+                };
+                persistPendingStudentSignup();
+                showStudentAuthPane('verify');
+                startOtpCooldown('signup');
+                showToast('An email verification code was sent.');
+            } catch (error) {
+                showToast(error.message || 'Could not create the student account.');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        }
+
+        async function verifyStudentSignup(event) {
+            event.preventDefault();
+            if (!supabaseClient || !pendingStudentSignup) return;
+
+            try {
+                if (!pendingStudentSignup.emailVerified) {
+                    const emailResult = await supabaseClient.auth.verifyOtp({
+                        email: pendingStudentSignup.email,
+                        token: document.getElementById('signupEmailOtp').value.trim(),
+                        type: 'signup'
+                    });
+                    if (emailResult.error) throw emailResult.error;
+                    pendingStudentSignup.emailVerified = true;
+                    persistPendingStudentSignup();
+                    updateStudentOtpRequirements();
+                }
+
+                const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+                if (userError) throw userError;
+                const user = userData.user;
+                if (!user) throw new Error('Verification succeeded, but the student session was not returned. Sign in to continue.');
+                await finishStudentSignIn(user.id);
+                pendingStudentSignup = null;
+                persistPendingStudentSignup();
+                showToast('Student account verified.');
+            } catch (error) {
+                showToast(error.message || 'The verification code was not accepted.');
+            }
+        }
+
+        function startOtpCooldown(kind) {
+            const key = `${kind}-email`;
+            if (otpCooldownTimers[key]) clearInterval(otpCooldownTimers[key]);
+            const buttonId = kind === 'recovery' ? 'resendRecoveryOtp' : 'resendEmailOtp';
+            const cooldownId = kind === 'recovery' ? 'recoveryOtpCooldown' : 'emailOtpCooldown';
+            const button = document.getElementById(buttonId);
+            const label = document.getElementById(cooldownId);
+            let seconds = 60;
+            button.disabled = true;
+            label.textContent = 'Resend in 1:00';
+            otpCooldownTimers[key] = setInterval(() => {
+                seconds -= 1;
+                if (seconds <= 0) {
+                    clearInterval(otpCooldownTimers[key]);
+                    delete otpCooldownTimers[key];
+                    button.disabled = false;
+                    label.textContent = '';
+                    return;
+                }
+                label.textContent = `Resend in 0:${String(seconds).padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        async function resendStudentOtp() {
+            if (!supabaseClient || !pendingStudentSignup) return;
+            if (pendingStudentSignup.emailVerified) return;
+            const { error } = await supabaseClient.auth.resend({
+                type: 'signup',
+                email: pendingStudentSignup.email
+            });
+            if (error) {
+                showToast(error.message || 'Could not resend the verification code.');
+                return;
+            }
+            startOtpCooldown('signup');
+            showToast('A new email code was sent.');
+        }
+
+        async function requestStudentRecovery(event) {
+            event.preventDefault();
+            if (!supabaseClient) return;
+            const email = document.getElementById('recoveryIdentifier').value.trim().toLowerCase();
+            recoveryVerification = { email };
+            const { error } = await supabaseClient.auth.signInWithOtp({
+                email,
+                options: { shouldCreateUser: false }
+            });
+            if (error) {
+                showToast(error.message || 'Could not send the recovery code.');
+                return;
+            }
+
+            document.getElementById('recoveryRequestForm').classList.add('hidden');
+            document.getElementById('recoveryVerifyForm').classList.remove('hidden');
+            startOtpCooldown('recovery');
+            showToast('A recovery code was sent.');
+        }
+
+        async function resendRecoveryCode() {
+            if (!supabaseClient || !recoveryVerification) return;
+            const { error } = await supabaseClient.auth.signInWithOtp({
+                email: recoveryVerification.email,
+                options: { shouldCreateUser: false }
+            });
+            if (error) {
+                showToast(error.message || 'Could not resend the recovery code.');
+                return;
+            }
+            startOtpCooldown('recovery');
+            showToast('A new recovery code was sent.');
+        }
+
+        async function completeStudentRecovery(event) {
+            event.preventDefault();
+            if (!supabaseClient || !recoveryVerification) return;
+            try {
+                if (!recoveryVerification.verifiedUserId) {
+                    const verification = await supabaseClient.auth.verifyOtp({
+                        email: recoveryVerification.email,
+                        token: document.getElementById('recoveryOtp').value.trim(),
+                        type: 'email'
+                    });
+                    if (verification.error) throw verification.error;
+
+                    const user = verification.data.user;
+                    if (!user) throw new Error('The recovery session could not be verified.');
+                    try {
+                        await loadStudentProfile(user.id);
+                    } catch (profileError) {
+                        await supabaseClient.auth.signOut();
+                        recoveryVerification = null;
+                        throw new Error('Password recovery is available only for student accounts.');
+                    }
+                    recoveryVerification.verifiedUserId = user.id;
+                }
+                const { error } = await supabaseClient.auth.updateUser({
+                    password: document.getElementById('recoveryNewPassword').value
+                });
+                if (error) throw error;
+
+                await finishStudentSignIn(recoveryVerification.verifiedUserId);
+                recoveryVerification = null;
+                showToast('Password reset successfully.');
+            } catch (error) {
+                showToast(error.message || 'Could not reset the password.');
+            }
         }
 
         async function handleAdminLogin(e) {
@@ -831,7 +1181,6 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             adminPasswordChangeRequired = data.user.user_metadata?.password_changed !== true;
             await loadSharedOrders();
             startOrderRealtimeSync();
-            saveSessionState();
             renderAdminAccess();
             renderUserProfile();
             renderStudentAppView();
@@ -898,8 +1247,9 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }
         }
 
-        function logoutUser() {
+        async function logoutUser() {
             stopStudentOrderPolling();
+            if (supabaseClient) await supabaseClient.auth.signOut();
             currentUser = null;
             clearSessionState();
             renderUserProfile();
@@ -1152,7 +1502,7 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 price: Number(item.price),
                 quantity: Number(item.quantity)
             }));
-            const { data: orderId, error } = await supabaseClient.rpc('place_canteen_order', {
+            const { data: createdOrder, error } = await supabaseClient.rpc('place_canteen_order', {
                 p_order_data: {
                     token: tokenNum,
                     tracking_key: trackingKey,
@@ -1165,13 +1515,15 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 }
             });
 
-            if (error || !orderId) {
+            const orderId = createdOrder?.id;
+            const pickupPin = createdOrder?.pickup_pin;
+            if (error || !orderId || !pickupPin) {
                 console.error('Order submission failed:', error);
                 showToast('Could not place your order. Please try again.');
                 return;
             }
 
-            saveStudentTrackingOrder(orderId, trackingKey);
+            saveStudentTrackingOrder(orderId, trackingKey, pickupPin);
 
             const newOrder = {
                 id: orderId,
@@ -1183,6 +1535,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 paymentMode: payMode,
                 timestamp: placedLabel,
                 statusIndex: 0,
+                pickupPin,
+                hasPickupPin: true,
                 claimedBy: null,
                 claimedByName: null
             };
@@ -1256,18 +1610,28 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
                             <div>
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-2xl font-black text-slate-900">Token: ${order.token}</span>
+                                    <span class="text-2xl font-black text-slate-900">Token: ${escapeHtml(order.token)}</span>
                                     ${isReady ? `
                                         <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full animate-pulse flex items-center gap-1">
                                             <i class="fa-solid fa-circle text-[8px]"></i> Ready at Counter
                                         </span>
                                     ` : ''}
                                 </div>
-                                <p class="text-xs text-slate-500 mt-0.5">Order ID: ${order.id} • Placed at ${order.timestamp}</p>
+                                <p class="text-xs text-slate-500 mt-0.5">Order ID: ${escapeHtml(order.id)} • Placed at ${escapeHtml(order.timestamp)}</p>
+                                ${!adminUser && order.pickupPin && order.statusIndex < 4 ? `
+                                    <p class="mt-2 inline-flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-800">
+                                        Pickup PIN: <span class="font-mono text-base">${escapeHtml(order.pickupPin)}</span>
+                                    </p>
+                                ` : ''}
+                                ${!adminUser && order.hasPickupPin && order.statusIndex < 4 ? `
+                                    <button type="button" onclick="showPickupPin('${escapeHtml(order.id)}')" class="mt-2 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-800 hover:bg-orange-100">
+                                        Regenerate pickup PIN
+                                    </button>
+                                ` : ''}
                             </div>
                             <div class="text-left sm:text-right">
                                 <span class="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-lg border border-slate-200">
-                                    <i class="fa-solid fa-clock text-orange-500 mr-1"></i> ${order.pickupSlot}
+                                    <i class="fa-solid fa-clock text-orange-500 mr-1"></i> ${escapeHtml(order.pickupSlot)}
                                 </span>
                             </div>
                         </div>
@@ -1294,18 +1658,18 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                         <div class="bg-slate-50 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
                             <div class="space-y-1">
                                 <p class="font-bold text-slate-700 uppercase tracking-wider">Student Profile</p>
-                                <p class="text-slate-900 font-semibold">${order.student.name} (<span class="text-orange-600">${order.student.registerId}</span>)</p>
-                                <p class="text-slate-500">${order.student.dept}</p>
+                                <p class="text-slate-900 font-semibold">${escapeHtml(order.student.name)} (<span class="text-orange-600">${escapeHtml(order.student.registerId)}</span>)</p>
+                                <p class="text-slate-500">${escapeHtml(order.student.dept)}</p>
                             </div>
                             <div class="space-y-1">
                                 <p class="font-bold text-slate-700 uppercase tracking-wider">Ordered Meal Items</p>
                                 <p class="text-slate-800 font-medium">
-                                    ${order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}
+                                    ${order.items.map(i => `${escapeHtml(i.name)} (x${Number(i.quantity) || 0})`).join(', ')}
                                 </p>
                             </div>
                             <div class="text-left sm:text-right border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4 w-full sm:w-auto">
                                 <p class="text-slate-500">Total Bill</p>
-                                <p class="text-lg font-black text-slate-900">₹${order.totalAmount}</p>
+                                <p class="text-lg font-black text-slate-900">₹${Number(order.totalAmount) || 0}</p>
                             </div>
                         </div>
 
@@ -1348,9 +1712,14 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             }).join('');
         }
 
-        async function updateOrderStatus(orderId, nextStatusIndex) {
+        async function updateOrderStatus(orderId, nextStatusIndex, pickupPin = null) {
             if (!adminUser || !supabaseClient) {
                 showToast('Admin access required to update order status.');
+                return;
+            }
+
+            if (nextStatusIndex === 4 && !pickupPin) {
+                openPickupPinModal(orderId);
                 return;
             }
 
@@ -1363,7 +1732,8 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 ? await supabaseClient.rpc('claim_canteen_order', { p_order_id: orderId })
                 : await supabaseClient.rpc('advance_canteen_order', {
                     p_order_id: orderId,
-                    p_next_status: nextStatusIndex
+                    p_next_status: nextStatusIndex,
+                    p_pickup_pin: pickupPin
                 });
 
             if (error) {
@@ -1375,7 +1745,9 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
             if (!data) {
                 showToast(nextStatusIndex === 1
                     ? 'Another admin already took this order.'
-                    : 'This order was updated by another admin.');
+                    : nextStatusIndex === 4
+                        ? 'Pickup PIN is incorrect or this order was already updated.'
+                        : 'This order was updated by another admin.');
                 await loadSharedOrders();
                 return;
             }
@@ -1404,6 +1776,44 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
 
             renderAdminOrders();
             renderActiveOrders();
+        }
+
+        async function showPickupPin(orderId) {
+            if (!currentUser || !supabaseClient) return;
+            const { data: pickupPin, error } = await supabaseClient.rpc('rotate_canteen_order_pickup_pin', {
+                p_order_id: orderId
+            });
+            if (error || !/^[0-9]{6}$/.test(String(pickupPin || ''))) {
+                showToast('Could not generate a pickup PIN for this order.');
+                return;
+            }
+
+            saveStudentPickupPin(orderId, pickupPin);
+            const order = activeOrders.find(existing => existing.id === orderId);
+            if (order) order.pickupPin = pickupPin;
+            renderActiveOrders();
+            showToast('A new pickup PIN was generated.');
+        }
+
+        function openPickupPinModal(orderId) {
+            pendingPickupOrderId = orderId;
+            document.getElementById('pickupPinInput').value = '';
+            document.getElementById('pickupPinModal').classList.remove('hidden');
+            document.getElementById('pickupPinInput').focus();
+        }
+
+        function closePickupPinModal() {
+            document.getElementById('pickupPinModal').classList.add('hidden');
+            pendingPickupOrderId = null;
+        }
+
+        async function confirmOrderCollection(event) {
+            event.preventDefault();
+            const orderId = pendingPickupOrderId;
+            const pickupPin = document.getElementById('pickupPinInput').value.trim();
+            if (!orderId || !/^[0-9]{6}$/.test(pickupPin)) return;
+            closePickupPinModal();
+            await updateOrderStatus(orderId, 4, pickupPin);
         }
 
         function notifyStudentOrderReady(order) {
