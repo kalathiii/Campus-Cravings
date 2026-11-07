@@ -992,11 +992,14 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                     password,
                     options: { data: { account_type: 'student', ...signupData } }
                 });
-                if (error || !data.user) throw error || new Error('Could not create the student account.');
+                if (error || !data.user) {
+                    console.error('Student signup failed:', error);
+                    throw error || new Error('Could not create the student account.');
+                }
 
                 if (data.user.email_confirmed_at) {
                     if (data.session) await supabaseClient.auth.signOut();
-                    throw new Error('Email confirmations are disabled. Enable them in Supabase before student signup.');
+                    throw new Error('Supabase auto-confirmed this account without sending an OTP. Enable Confirm Email in Supabase Auth to continue with email verification.');
                 }
                 if (data.session) await supabaseClient.auth.signOut();
 
