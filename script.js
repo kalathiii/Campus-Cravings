@@ -997,9 +997,15 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                     throw error || new Error('Could not create the student account.');
                 }
 
+                if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+                    document.getElementById('loginIdentifier').value = email;
+                    showStudentAuthPane('login');
+                    throw new Error('An account already exists for this email. Log in or choose Forgot password.');
+                }
+
                 if (data.user.email_confirmed_at) {
                     if (data.session) await supabaseClient.auth.signOut();
-                    throw new Error('Supabase auto-confirmed this account without sending an OTP. Enable Confirm Email in Supabase Auth to continue with email verification.');
+                    throw new Error('Supabase auto-confirmed this account without sending an OTP. Enable Confirm Email in Supabase Auth to use email verification.');
                 }
                 if (data.session) await supabaseClient.auth.signOut();
 
@@ -1044,7 +1050,12 @@ const SUPABASE_URL = 'https://ihhxganuvaujndpznlym.supabase.co';
                 persistPendingStudentSignup();
                 showToast('Student account verified.');
             } catch (error) {
-                showToast(error.message || 'The verification code was not accepted.');
+                console.error('Student email verification or profile setup failed:', error);
+                if (pendingStudentSignup?.emailVerified) {
+                    showToast('Email verified, but the student profile could not be loaded. Run the latest setup.sql in Supabase and retry.');
+                } else {
+                    showToast(error.message || 'The verification code was not accepted.');
+                }
             }
         }
 
